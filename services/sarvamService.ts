@@ -165,15 +165,21 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
   formData.append('model', 'saaras:v1'); 
 
   try {
-    // Call local API route which holds the secret key
     const response = await fetch('/api/sarvam/asr', {
       method: 'POST',
       body: formData,
     });
 
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(`ASR Error: ${errData.error || response.statusText}`);
+      const errorText = await response.text();
+      let errorMessage = response.statusText;
+      try {
+        const json = JSON.parse(errorText);
+        if (json.error) errorMessage = json.error;
+      } catch (e) {
+        errorMessage = errorText;
+      }
+      throw new Error(`ASR Error: ${errorMessage}`);
     }
 
     const data = await response.json();
@@ -190,6 +196,7 @@ export const textToSpeech = async (text: string): Promise<string> => {
     console.log(`TTS: Processing ${chunks.length} chunks via proxy.`);
     
     const audioBase64List: string[] = [];
+    let lastError = "Unknown error";
 
     // Process chunks sequentially
     for (const chunk of chunks) {
@@ -211,7 +218,14 @@ export const textToSpeech = async (text: string): Promise<string> => {
       });
 
       if (!response.ok) {
-        console.warn("TTS Chunk Proxy Failed:", await response.text());
+        const errorText = await response.text();
+        console.warn("TTS Chunk Proxy Failed:", errorText);
+        try {
+            const json = JSON.parse(errorText);
+            lastError = json.error || errorText;
+        } catch {
+            lastError = errorText;
+        }
         continue;
       }
 
@@ -222,7 +236,7 @@ export const textToSpeech = async (text: string): Promise<string> => {
     }
 
     if (audioBase64List.length === 0) {
-      throw new Error("No audio chunks generated.");
+      throw new Error(lastError); // Throw the actual error from the proxy
     }
 
     return await mergeWavBase64(audioBase64List);

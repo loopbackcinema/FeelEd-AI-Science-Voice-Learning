@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.SARVAM_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ error: 'Server Config Error: SARVAM_API_KEY missing' }, { status: 500 });
+    return NextResponse.json({ error: 'Server Config Error: SARVAM_API_KEY missing in server env.' }, { status: 500 });
   }
 
   try {
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error: any) {
+    console.error("TTS Proxy Error", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
