@@ -1,0 +1,7 @@
+{
+  "name": "FeelEd AI – Science Voice Learning",
+  "description": "A bilingual (Tamil/English) voice-first science learning pilot for students in classes 6-8.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
