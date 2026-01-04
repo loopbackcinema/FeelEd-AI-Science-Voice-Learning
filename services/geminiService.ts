@@ -1,11 +1,20 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { QuizQuestion } from '../types';
 
-// Use the Gemini API for the "Intelligence" part of the app (Generating the story and quiz)
-// The User prompt specified Sarvam for Voice/ASR/TTS, but we need an LLM for content generation.
+// Use the Gemini API for the "Intelligence" part of the app
 // Using Gemini 3 Flash for optimal performance and Tamil language support.
 
-const apiKey = process.env.API_KEY || '';
+// Helper to safely get env vars without crashing
+const getEnv = (key: string) => {
+  // Check process.env (Standard/Next.js)
+  if (typeof process !== 'undefined' && process.env && process.env[key]) return process.env[key];
+  // Check import.meta.env (Vite)
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) return import.meta.env[key];
+  return '';
+};
+
+const apiKey = getEnv('GEMINI_API_KEY') || getEnv('NEXT_PUBLIC_GEMINI_API_KEY') || '';
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const generateScienceContent = async (
@@ -13,7 +22,13 @@ export const generateScienceContent = async (
   topic: string,
   query: string
 ): Promise<{ story: string; quiz: QuizQuestion[] }> => {
-  if (!ai) throw new Error("API Key missing");
+  if (!ai) {
+    console.error("Gemini API Key is missing. Please set GEMINI_API_KEY in Vercel.");
+    return {
+      story: "மன்னிக்கவும். தொழில்நுட்ப கோளாறு காரணமாக என்னால் இப்போது பதில் சொல்ல முடியவில்லை. (API Key Missing)",
+      quiz: []
+    };
+  }
 
   const prompt = `
     You are a friendly science teacher for rural students in Tamil Nadu, India.
@@ -56,12 +71,12 @@ export const generateScienceContent = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // Updated to valid model
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: schema,
-        temperature: 0.7, // Creative but stuck to facts
+        temperature: 0.7,
       },
     });
 
@@ -72,7 +87,6 @@ export const generateScienceContent = async (
 
   } catch (error) {
     console.error("Gemini Generation Error:", error);
-    // Return fallback content for demo purposes if API fails
     return {
       story: "மன்னிக்கவும். தொழில்நுட்ப கோளாறு காரணமாக என்னால் இப்போது பதில் சொல்ல முடியவில்லை. (System Error)",
       quiz: []
@@ -96,7 +110,7 @@ export const generateSimplerExplanation = async (previousStory: string): Promise
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview', // Updated to valid model
+            model: 'gemini-3-flash-preview',
             contents: prompt,
         });
         return response.text || "Error regenerating";

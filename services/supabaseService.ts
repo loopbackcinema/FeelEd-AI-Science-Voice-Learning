@@ -1,7 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Helper to safely get env vars without crashing
+const getEnv = (key: string) => {
+  if (typeof process !== 'undefined' && process.env && process.env[key]) return process.env[key];
+  // @ts-ignore
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) return import.meta.env[key];
+  return '';
+};
+
+const SUPABASE_URL = getEnv('NEXT_PUBLIC_SUPABASE_URL') || getEnv('SUPABASE_URL') || '';
+const SUPABASE_KEY = getEnv('SUPABASE_ANON_KEY') || getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY') || '';
 
 // Initialize client only if keys are present (prevents crash in dev if missing)
 const supabase = (SUPABASE_URL && SUPABASE_KEY) 
