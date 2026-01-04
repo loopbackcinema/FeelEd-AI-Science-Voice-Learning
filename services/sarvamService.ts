@@ -1,19 +1,31 @@
-// Helper to safely get env vars without crashing
-const getEnv = (key: string) => {
-  if (typeof process !== 'undefined' && process.env && process.env[key]) return process.env[key];
+// Helper to safely get env vars by explicit checking (required for bundlers)
+const getSarvamKey = (): string => {
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.SARVAM_API_KEY) return process.env.SARVAM_API_KEY;
+    if (process.env.NEXT_PUBLIC_SARVAM_API_KEY) return process.env.NEXT_PUBLIC_SARVAM_API_KEY;
+    if (process.env.REACT_APP_SARVAM_API_KEY) return process.env.REACT_APP_SARVAM_API_KEY;
+    if (process.env.VITE_SARVAM_API_KEY) return process.env.VITE_SARVAM_API_KEY;
+  }
   // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) return import.meta.env[key];
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    // @ts-ignore
+    if (import.meta.env.SARVAM_API_KEY) return import.meta.env.SARVAM_API_KEY;
+    // @ts-ignore
+    if (import.meta.env.VITE_SARVAM_API_KEY) return import.meta.env.VITE_SARVAM_API_KEY;
+    // @ts-ignore
+    if (import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY) return import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY;
+  }
   return '';
 };
 
-const SARVAM_API_KEY = getEnv('SARVAM_API_KEY') || getEnv('NEXT_PUBLIC_SARVAM_API_KEY') || '';
+const SARVAM_API_KEY = getSarvamKey();
 
 // Mock Sarvam functionality if API key is missing (for UI testing without credits)
 const isMock = !SARVAM_API_KEY;
 
 export const speechToText = async (audioBlob: Blob): Promise<string> => {
   if (isMock) {
-    console.log("Mocking ASR (Missing Key)...");
+    console.warn("SARVAM_API_KEY not found. Using Mock ASR.");
     return new Promise(resolve => setTimeout(() => resolve("சூரியன் ஏன் சூடாக இருக்கிறது?"), 1000));
   }
 
@@ -44,7 +56,8 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
 
 export const textToSpeech = async (text: string): Promise<string> => {
   if (isMock) {
-     console.log("Mocking TTS (Missing Key)...");
+     console.warn("SARVAM_API_KEY not found. Using Mock TTS.");
+     // Return a simple beep or silent track for demo
      return "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
   }
 

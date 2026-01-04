@@ -1,15 +1,40 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Helper to safely get env vars without crashing
-const getEnv = (key: string) => {
-  if (typeof process !== 'undefined' && process.env && process.env[key]) return process.env[key];
+const getEnvUrl = (): string => {
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) return process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (process.env.VITE_SUPABASE_URL) return process.env.VITE_SUPABASE_URL;
+    if (process.env.REACT_APP_SUPABASE_URL) return process.env.REACT_APP_SUPABASE_URL;
+  }
   // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) return import.meta.env[key];
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+     // @ts-ignore
+     if (import.meta.env.NEXT_PUBLIC_SUPABASE_URL) return import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
+     // @ts-ignore
+     if (import.meta.env.VITE_SUPABASE_URL) return import.meta.env.VITE_SUPABASE_URL;
+  }
   return '';
-};
+}
 
-const SUPABASE_URL = getEnv('NEXT_PUBLIC_SUPABASE_URL') || getEnv('SUPABASE_URL') || '';
-const SUPABASE_KEY = getEnv('SUPABASE_ANON_KEY') || getEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY') || '';
+const getEnvKey = (): string => {
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (process.env.SUPABASE_ANON_KEY) return process.env.SUPABASE_ANON_KEY; // Sometimes used if build exposes it
+    if (process.env.VITE_SUPABASE_ANON_KEY) return process.env.VITE_SUPABASE_ANON_KEY;
+    if (process.env.REACT_APP_SUPABASE_ANON_KEY) return process.env.REACT_APP_SUPABASE_ANON_KEY;
+  }
+   // @ts-ignore
+   if (typeof import.meta !== 'undefined' && import.meta.env) {
+     // @ts-ignore
+     if (import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+     // @ts-ignore
+     if (import.meta.env.VITE_SUPABASE_ANON_KEY) return import.meta.env.VITE_SUPABASE_ANON_KEY;
+  }
+  return '';
+}
+
+const SUPABASE_URL = getEnvUrl();
+const SUPABASE_KEY = getEnvKey();
 
 // Initialize client only if keys are present (prevents crash in dev if missing)
 const supabase = (SUPABASE_URL && SUPABASE_KEY) 

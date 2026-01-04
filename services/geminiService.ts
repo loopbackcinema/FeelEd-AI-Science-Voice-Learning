@@ -4,17 +4,31 @@ import { QuizQuestion } from '../types';
 // Use the Gemini API for the "Intelligence" part of the app
 // Using Gemini 3 Flash for optimal performance and Tamil language support.
 
-// Helper to safely get env vars without crashing
-const getEnv = (key: string) => {
-  // Check process.env (Standard/Next.js)
-  if (typeof process !== 'undefined' && process.env && process.env[key]) return process.env[key];
-  // Check import.meta.env (Vite)
+// NOTE: We must access process.env.VAR_NAME directly for bundlers (Vite/Next/Webpack) to replace them at build time.
+// Dynamic access like process.env[key] often fails in client-side builds.
+
+const getGeminiKey = (): string => {
+  // Try standard Node/Next.js
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+    if (process.env.NEXT_PUBLIC_GEMINI_API_KEY) return process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    if (process.env.REACT_APP_GEMINI_API_KEY) return process.env.REACT_APP_GEMINI_API_KEY;
+    if (process.env.VITE_GEMINI_API_KEY) return process.env.VITE_GEMINI_API_KEY;
+  }
+  // Try Vite import.meta
   // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) return import.meta.env[key];
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    // @ts-ignore
+    if (import.meta.env.GEMINI_API_KEY) return import.meta.env.GEMINI_API_KEY;
+    // @ts-ignore
+    if (import.meta.env.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
+    // @ts-ignore
+    if (import.meta.env.NEXT_PUBLIC_GEMINI_API_KEY) return import.meta.env.NEXT_PUBLIC_GEMINI_API_KEY;
+  }
   return '';
 };
 
-const apiKey = getEnv('GEMINI_API_KEY') || getEnv('NEXT_PUBLIC_GEMINI_API_KEY') || '';
+const apiKey = getGeminiKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const generateScienceContent = async (
@@ -23,9 +37,9 @@ export const generateScienceContent = async (
   query: string
 ): Promise<{ story: string; quiz: QuizQuestion[] }> => {
   if (!ai) {
-    console.error("Gemini API Key is missing. Please set GEMINI_API_KEY in Vercel.");
+    console.error("Gemini API Key is missing. Checked: GEMINI_API_KEY, NEXT_PUBLIC_GEMINI_API_KEY, VITE_GEMINI_API_KEY.");
     return {
-      story: "மன்னிக்கவும். தொழில்நுட்ப கோளாறு காரணமாக என்னால் இப்போது பதில் சொல்ல முடியவில்லை. (API Key Missing)",
+      story: "மன்னிக்கவும். தொழில்நுட்ப கோளாறு காரணமாக என்னால் இப்போது பதில் சொல்ல முடியவில்லை. (API Key Missing - Check Console)",
       quiz: []
     };
   }
