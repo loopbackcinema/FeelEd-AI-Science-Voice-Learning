@@ -1,21 +1,22 @@
 // Helper to safely get env vars by explicit checking
-// NOTE: In Vercel/Next.js/Vite, client-side keys MUST start with NEXT_PUBLIC_ or VITE_
 const getSarvamKey = (): string => {
-  // Check specifically for the public ones first as they are most likely in a browser env
+  // Try standard Node/Next.js
   if (typeof process !== 'undefined' && process.env) {
-    if (process.env.NEXT_PUBLIC_SARVAM_API_KEY) return process.env.NEXT_PUBLIC_SARVAM_API_KEY;
-    if (process.env.VITE_SARVAM_API_KEY) return process.env.VITE_SARVAM_API_KEY;
-    // Fallback to standard if bundler replaced it
+    // Check for the user's preferred key first
     if (process.env.SARVAM_API_KEY) return process.env.SARVAM_API_KEY;
+    if (process.env.NEXT_PUBLIC_SARVAM_API_KEY) return process.env.NEXT_PUBLIC_SARVAM_API_KEY;
+    if (process.env.REACT_APP_SARVAM_API_KEY) return process.env.REACT_APP_SARVAM_API_KEY;
+    if (process.env.VITE_SARVAM_API_KEY) return process.env.VITE_SARVAM_API_KEY;
   }
+  // Try Vite import.meta
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env) {
+    // @ts-ignore
+    if (import.meta.env.SARVAM_API_KEY) return import.meta.env.SARVAM_API_KEY;
     // @ts-ignore
     if (import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY) return import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY;
     // @ts-ignore
     if (import.meta.env.VITE_SARVAM_API_KEY) return import.meta.env.VITE_SARVAM_API_KEY;
-    // @ts-ignore
-    if (import.meta.env.SARVAM_API_KEY) return import.meta.env.SARVAM_API_KEY;
   }
   return '';
 };
@@ -23,7 +24,7 @@ const getSarvamKey = (): string => {
 const SARVAM_API_KEY = getSarvamKey();
 
 // Helper to split long text into chunks
-const chunkText = (text: string, maxLength: number = 400): string[] => {
+const chunkText = (text: string, maxLength: number = 300): string[] => {
   const chunks: string[] = [];
   
   // 1. Split by sentence endings
@@ -129,7 +130,6 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
         totalLength += pcmData.length;
       } else {
         // Fallback way: Assume standard 44 byte header if parsing fails
-        // This prevents dropping chunks if the header is slightly non-standard but still playable raw
         console.warn("Could not find data chunk, using fallback strip (44 bytes).");
         if (buffer.length > 44) {
             const pcmData = buffer.slice(44);
@@ -194,7 +194,7 @@ const writeString = (view: DataView, offset: number, string: string) => {
 
 export const speechToText = async (audioBlob: Blob): Promise<string> => {
   if (!SARVAM_API_KEY) {
-    throw new Error("KEY_MISSING: NEXT_PUBLIC_SARVAM_API_KEY not found in env.");
+    throw new Error("API Key Missing: SARVAM_API_KEY is not defined in environment variables.");
   }
 
   const formData = new FormData();
@@ -225,7 +225,7 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
 
 export const textToSpeech = async (text: string): Promise<string> => {
   if (!SARVAM_API_KEY) {
-     throw new Error("KEY_MISSING: NEXT_PUBLIC_SARVAM_API_KEY not found. Please rename your variable in Vercel.");
+     throw new Error("API Key Missing: SARVAM_API_KEY is not defined in environment variables.");
   }
 
   try {
@@ -258,7 +258,6 @@ export const textToSpeech = async (text: string): Promise<string> => {
       if (!response.ok) {
         const errText = await response.text();
         console.error(`TTS Chunk Failed (${response.status}):`, errText);
-        // We continue to next chunk to at least get partial audio if possible
         continue;
       }
 

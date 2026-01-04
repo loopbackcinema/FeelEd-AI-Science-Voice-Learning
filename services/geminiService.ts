@@ -51,9 +51,9 @@ export const generateScienceContent = async (
     Student Question: "${query}"
 
     Task 1: Create an EXPLANATION STORY in TAMIL.
-    - TARGET LENGTH: Approx 200-220 words (This must take about 90 seconds to read aloud).
+    - TARGET LENGTH: Approx 130-150 words (This must take about 60 seconds to read aloud).
     - Use simple spoken Tamil (Tanglish style is okay if it helps clarity, but prefer clear Tamil).
-    - Use a detailed real-world analogy relevant to village/daily life to fill the time meaningfully.
+    - Use a detailed real-world analogy relevant to village/daily life.
     - Tone: Encouraging, storytelling, slow-paced.
 
     Task 2: Create a quiz with 3 questions based strictly on the explanation.
@@ -65,7 +65,7 @@ export const generateScienceContent = async (
   const schema = {
     type: Type.OBJECT,
     properties: {
-      story: { type: Type.STRING, description: "The explanation story in Tamil (approx 200 words)" },
+      story: { type: Type.STRING, description: "The explanation story in Tamil (approx 130 words)" },
       quiz: {
         type: Type.ARRAY,
         items: {
@@ -115,10 +115,9 @@ export const generateSimplerExplanation = async (previousStory: string): Promise
       The student did not understand this explanation:
       "${previousStory}"
       
-      Please rewrite it to be MUCH simpler but keep it DETAILED enough to understand.
+      Please rewrite it to be MUCH simpler.
       - Use shorter sentences.
-      - Use a different, easier analogy.
-      - Target Length: 100-120 words.
+      - Target Length: 80-100 words.
       - Language: Tamil.
     `;
 

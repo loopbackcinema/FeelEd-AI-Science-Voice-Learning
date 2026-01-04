@@ -109,11 +109,7 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error(error);
       const msg = error.message || "Unknown Error";
-      if (msg.includes("KEY_MISSING")) {
-        alert("SETUP ERROR: " + msg);
-      } else {
-        alert("Error processing: " + msg);
-      }
+      alert("Error processing: " + msg);
       setStep('INPUT');
     } finally {
       setIsProcessing(false);
@@ -263,12 +259,12 @@ const App: React.FC = () => {
   // Debug Footer
   const DebugFooter = () => (
       <div className="fixed bottom-0 left-0 w-full p-1 bg-slate-900 text-slate-500 text-[10px] flex justify-center gap-4">
-        <span>Client: v1.1</span>
+        <span>Client: v1.2 (60s)</span>
         <span>
-          Gemini Key: { process.env.NEXT_PUBLIC_GEMINI_API_KEY ? '✅' : '❌' }
+          Gemini: { (process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY) ? '✅' : '❌' }
         </span>
         <span>
-          Sarvam Key: { process.env.NEXT_PUBLIC_SARVAM_API_KEY ? '✅' : '❌' }
+          Sarvam: { (process.env.SARVAM_API_KEY || process.env.NEXT_PUBLIC_SARVAM_API_KEY) ? '✅' : '❌' }
         </span>
       </div>
   )
