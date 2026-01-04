@@ -208,7 +208,7 @@ export const textToSpeech = async (text: string): Promise<string> => {
         body: JSON.stringify({
           inputs: [chunk],
           target_language_code: 'ta-IN',
-          speaker: 'kavya', 
+          speaker: 'anushka', // Updated to valid speaker for bulbul:v2
           pitch: 0,
           pace: 1.0, 
           loudness: 1.5,
