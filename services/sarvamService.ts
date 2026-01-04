@@ -20,12 +20,12 @@ const getSarvamKey = (): string => {
 
 const SARVAM_API_KEY = getSarvamKey();
 
-// Helper to split long text into chunks (Sarvam limit ~500 chars usually)
-const chunkText = (text: string, maxLength: number = 450): string[] => {
+// Helper to split long text into chunks
+const chunkText = (text: string, maxLength: number = 400): string[] => {
   const chunks: string[] = [];
   let currentChunk = '';
   
-  // Split by sentence endings (Tamil full stop or standard)
+  // Split by sentence endings for natural pauses
   const sentences = text.split(/([.?!।]\s+)/);
 
   for (const part of sentences) {
@@ -41,72 +41,126 @@ const chunkText = (text: string, maxLength: number = 450): string[] => {
   return chunks.filter(c => c.length > 0);
 };
 
-// Helper to merge multiple WAV base64 strings
+// --- ROBUST WAV MERGING LOGIC ---
+
+// Helper to find the start of the 'data' chunk in a WAV file
+const findDataChunkOffset = (view: DataView): { offset: number, size: number } | null => {
+  // RIFF(4) + Size(4) + WAVE(4) = 12 bytes
+  let offset = 12; 
+  while (offset < view.byteLength) {
+    // Read Chunk ID (4 bytes)
+    const chunkId = String.fromCharCode(
+      view.getUint8(offset),
+      view.getUint8(offset + 1),
+      view.getUint8(offset + 2),
+      view.getUint8(offset + 3)
+    );
+    // Read Chunk Size (4 bytes, little endian)
+    const chunkSize = view.getUint32(offset + 4, true);
+
+    if (chunkId === 'data') {
+      return { offset: offset + 8, size: chunkSize };
+    }
+
+    // Move to next chunk
+    offset += 8 + chunkSize;
+  }
+  return null;
+};
+
 const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
   if (base64List.length === 0) return '';
   if (base64List.length === 1) return `data:audio/wav;base64,${base64List[0]}`;
 
   try {
-    const buffers = base64List.map(b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
-    
-    // First buffer has the header we'll use (44 bytes standard WAV)
-    const header = buffers[0].slice(0, 44);
-    const bodyChunks = buffers.map((b, i) => i === 0 ? b.slice(44) : b.slice(44)); // Strip headers from all, re-add header later
-    // Actually, first chunk header is useful, but we need to update size. 
-    // Let's strip headers from ALL and prepend a new header or reused header.
-    
-    const totalDataLength = bodyChunks.reduce((acc, b) => acc + b.length, 0);
-    const mergedBody = new Uint8Array(totalDataLength);
-    
-    let offset = 0;
-    for (const chunk of bodyChunks) {
-      mergedBody.set(chunk, offset);
-      offset += chunk.length;
+    // 1. Decode all base64 to buffers
+    const audioBuffers = base64List.map(b64 => {
+      const binaryString = atob(b64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes;
+    });
+
+    // 2. Extract raw PCM data from each WAV
+    const pcmParts: Uint8Array[] = [];
+    let totalLength = 0;
+
+    for (const buffer of audioBuffers) {
+      const view = new DataView(buffer.buffer);
+      const dataInfo = findDataChunkOffset(view);
+      
+      if (dataInfo) {
+        // Extract strictly the audio data, skipping header/metadata
+        const pcmData = buffer.slice(dataInfo.offset, dataInfo.offset + dataInfo.size);
+        pcmParts.push(pcmData);
+        totalLength += pcmData.length;
+      } else {
+        console.warn("Could not find data chunk in a WAV segment, skipping.");
+      }
     }
 
-    // Update Header info
-    // WAV Header format:
-    // Bytes 4-7: ChunkSize (36 + SubChunk2Size)
-    // Bytes 40-43: SubChunk2Size (Data length)
+    // 3. Create a clean 44-byte WAV header
+    const header = new ArrayBuffer(44);
+    const view = new DataView(header);
     
-    const newHeader = new Uint8Array(header);
-    const dataSize = totalDataLength;
-    const fileSize = 36 + dataSize;
+    // RIFF
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + totalLength, true); // File size
+    writeString(view, 8, 'WAVE');
+    
+    // fmt chunk
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+    view.setUint16(20, 1, true); // AudioFormat (1 = PCM)
+    view.setUint16(22, 1, true); // NumChannels (Mono = 1) - Sarvam usually returns mono
+    view.setUint32(24, 16000, true); // SampleRate (16kHz)
+    view.setUint32(28, 16000 * 1 * 2, true); // ByteRate
+    view.setUint16(32, 2, true); // BlockAlign
+    view.setUint16(34, 16, true); // BitsPerSample
 
-    // Helper to write LE uint32
-    const writeUInt32LE = (arr: Uint8Array, val: number, offset: number) => {
-      arr[offset] = val & 0xFF;
-      arr[offset + 1] = (val >>> 8) & 0xFF;
-      arr[offset + 2] = (val >>> 16) & 0xFF;
-      arr[offset + 3] = (val >>> 24) & 0xFF;
-    };
+    // data chunk
+    writeString(view, 36, 'data');
+    view.setUint32(40, totalLength, true);
 
-    writeUInt32LE(newHeader, fileSize, 4);
-    writeUInt32LE(newHeader, dataSize, 40);
+    // 4. Concatenate Header + All PCM Parts
+    const finalBuffer = new Uint8Array(44 + totalLength);
+    finalBuffer.set(new Uint8Array(header), 0);
+    
+    let offset = 44;
+    for (const part of pcmParts) {
+      finalBuffer.set(part, offset);
+      offset += part.length;
+    }
 
-    // Combine
-    const finalFile = new Uint8Array(newHeader.length + mergedBody.length);
-    finalFile.set(newHeader, 0);
-    finalFile.set(mergedBody, newHeader.length);
-
-    // Convert back to base64
+    // 5. Convert back to base64
     let binary = '';
-    const len = finalFile.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(finalFile[i]);
+    const len = finalBuffer.byteLength;
+    // Process in chunks to avoid call stack size exceeded
+    const CHUNK_SIZE = 8192;
+    for (let i = 0; i < len; i += CHUNK_SIZE) {
+        binary += String.fromCharCode.apply(null, Array.from(finalBuffer.subarray(i, Math.min(i + CHUNK_SIZE, len))));
     }
+    
     return `data:audio/wav;base64,${btoa(binary)}`;
 
   } catch (e) {
     console.error("Error merging WAVs", e);
-    return `data:audio/wav;base64,${base64List[0]}`; // Fallback to first chunk
+    // Fallback: return the first chunk so at least something plays
+    return `data:audio/wav;base64,${base64List[0]}`; 
+  }
+};
+
+const writeString = (view: DataView, offset: number, string: string) => {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
   }
 };
 
 export const speechToText = async (audioBlob: Blob): Promise<string> => {
   if (!SARVAM_API_KEY) {
-    console.warn("SARVAM_API_KEY not found. Using Mock ASR.");
-    return new Promise(resolve => setTimeout(() => resolve("சூரியன் ஏன் சூடாக இருக்கிறது?"), 1000));
+    throw new Error("SARVAM_API_KEY is missing in Environment Variables");
   }
 
   const formData = new FormData();
@@ -136,15 +190,17 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
 
 export const textToSpeech = async (text: string): Promise<string> => {
   if (!SARVAM_API_KEY) {
-     console.warn("SARVAM_API_KEY not found. Using Mock TTS (Beep).");
-     return "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
+     throw new Error("SARVAM_API_KEY is missing in Environment Variables");
   }
 
   try {
     const chunks = chunkText(text);
-    console.log(`TTS: Split text into ${chunks.length} chunks for processing.`);
+    console.log(`TTS: Processing ${chunks.length} chunks.`);
     
-    const audioPromises = chunks.map(async (chunk) => {
+    // Process sequentially to preserve order and avoid rate limits
+    const audioBase64List: string[] = [];
+
+    for (const chunk of chunks) {
       const response = await fetch('https://api.sarvam.ai/text-to-speech', {
         method: 'POST',
         headers: {
@@ -166,25 +222,21 @@ export const textToSpeech = async (text: string): Promise<string> => {
 
       if (!response.ok) {
         console.error("TTS Chunk Failed", await response.text());
-        return null;
+        continue;
       }
 
       const data = await response.json();
       if (data.audios && data.audios[0]) {
-        return data.audios[0] as string; // Base64 string (no data URI prefix yet)
+        audioBase64List.push(data.audios[0]);
       }
-      return null;
-    });
+    }
 
-    const results = await Promise.all(audioPromises);
-    const validBase64s = results.filter((r): r is string => r !== null);
-
-    if (validBase64s.length === 0) {
+    if (audioBase64List.length === 0) {
       throw new Error("No audio generated from Sarvam");
     }
 
-    // Merge chunks into one WAV
-    return await mergeWavBase64(validBase64s);
+    // Merge chunks into one valid WAV file
+    return await mergeWavBase64(audioBase64List);
 
   } catch (error) {
     console.error("TTS Error:", error);

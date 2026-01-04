@@ -104,9 +104,13 @@ const App: React.FC = () => {
       // 2. Generate Content
       await processContentGeneration(transcript);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Error processing audio. Please try again.");
+      if (error.message.includes("SARVAM_API_KEY")) {
+        alert("Configuration Error: SARVAM_API_KEY is missing in Vercel. Please check Project Settings.");
+      } else {
+        alert("Error processing audio. Please try again or type your question.");
+      }
       setStep('INPUT');
     } finally {
       setIsProcessing(false);
@@ -133,8 +137,19 @@ const App: React.FC = () => {
 
       // 3. TTS
       setLoadingMessage('Generating Audio... (ஒலி உருவாக்கப்படுகிறது...)');
-      const audioUrl = await textToSpeech(storyText);
-      setSession(prev => ({ ...prev, explanationAudioUrl: audioUrl }));
+      try {
+        const audioUrl = await textToSpeech(storyText);
+        setSession(prev => ({ ...prev, explanationAudioUrl: audioUrl }));
+      } catch (audioError: any) {
+         console.error("Audio Generation Failed:", audioError);
+         if (audioError.message.includes("SARVAM_API_KEY")) {
+           alert("Audio Disabled: SARVAM_API_KEY missing. You can still read the text.");
+         } else {
+           alert("Audio generation failed. Please read the text below.");
+         }
+         setSession(prev => ({ ...prev, explanationAudioUrl: null }));
+      }
+
       setStep('PLAYBACK');
 
       // Auto play attempt
@@ -206,13 +221,17 @@ const App: React.FC = () => {
 
     // If 0 score, gentle explanation (Voice logic could be added here, currently text)
     if (correctCount === 0) {
-        const comfortAudio = await textToSpeech("பரவாயில்லை! நாம் மீண்டும் முயற்சிப்போம். (It's okay! We will try again.)");
-        const audio = new Audio(comfortAudio);
-        audio.play();
+        try {
+          const comfortAudio = await textToSpeech("பரவாயில்லை! நாம் மீண்டும் முயற்சிப்போம். (It's okay! We will try again.)");
+          const audio = new Audio(comfortAudio);
+          audio.play();
+        } catch(e) { console.warn("Comfort audio failed", e)}
     } else {
-        const congratsAudio = await textToSpeech("வாழ்த்துகள்! சிறப்பாக செய்தீர்கள். (Congratulations! You did well.)");
-        const audio = new Audio(congratsAudio);
-        audio.play();
+        try {
+          const congratsAudio = await textToSpeech("வாழ்த்துகள்! சிறப்பாக செய்தீர்கள். (Congratulations! You did well.)");
+          const audio = new Audio(congratsAudio);
+          audio.play();
+        } catch(e) { console.warn("Congrats audio failed", e)}
     }
   };
 
@@ -341,14 +360,20 @@ const App: React.FC = () => {
       </div>
 
       <div className="w-full mb-6">
-        <audio 
-            ref={audioPlayerRef} 
-            src={session.explanationAudioUrl || ''} 
-            controls 
-            className="w-full rounded-lg shadow-sm border border-slate-200"
-            onEnded={() => setIsPlaying(false)}
-            onPlay={() => setIsPlaying(true)}
-        />
+        {session.explanationAudioUrl ? (
+          <audio 
+              ref={audioPlayerRef} 
+              src={session.explanationAudioUrl} 
+              controls 
+              className="w-full rounded-lg shadow-sm border border-slate-200"
+              onEnded={() => setIsPlaying(false)}
+              onPlay={() => setIsPlaying(true)}
+          />
+        ) : (
+          <div className="p-4 bg-red-50 text-red-600 rounded-lg text-center font-tamil border border-red-200">
+             Audio Unavailable (ஒலி கிடைக்கவில்லை)
+          </div>
+        )}
       </div>
 
       <div className="mt-auto space-y-3">
@@ -362,7 +387,11 @@ const App: React.FC = () => {
             <button onClick={() => handleAction('explain_again')} className="bg-orange-100 text-orange-700 p-4 rounded-xl font-bold font-tamil shadow-sm active:scale-95 transition">
              விளக்கவும் (Explain Again)
             </button>
-            <button onClick={() => handleAction('replay')} className="bg-blue-100 text-blue-700 p-4 rounded-xl font-bold font-tamil shadow-sm active:scale-95 transition flex items-center justify-center gap-2">
+            <button 
+              onClick={() => handleAction('replay')} 
+              disabled={!session.explanationAudioUrl}
+              className="bg-blue-100 text-blue-700 p-4 rounded-xl font-bold font-tamil shadow-sm active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50"
+            >
              <span>மீண்டும் கேட்க</span> {isPlaying && <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"/>}
             </button>
         </div>
