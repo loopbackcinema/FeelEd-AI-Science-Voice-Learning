@@ -208,13 +208,13 @@ export const textToSpeech = async (text: string): Promise<string> => {
         body: JSON.stringify({
           inputs: [chunk],
           target_language_code: 'ta-IN',
-          speaker: 'meera',
+          speaker: 'kavya', 
           pitch: 0,
           pace: 1.0, 
           loudness: 1.5,
           speech_sample_rate: 16000,
           enable_preprocessing: true,
-          model: 'bulbul:v1'
+          model: 'bulbul:v2'
         }),
       });
 
