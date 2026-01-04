@@ -1,19 +1,21 @@
-// Helper to safely get env vars by explicit checking (required for bundlers)
+// Helper to safely get env vars by explicit checking
+// NOTE: In Vercel/Next.js/Vite, client-side keys MUST start with NEXT_PUBLIC_ or VITE_
 const getSarvamKey = (): string => {
+  // Check specifically for the public ones first as they are most likely in a browser env
   if (typeof process !== 'undefined' && process.env) {
-    if (process.env.SARVAM_API_KEY) return process.env.SARVAM_API_KEY;
     if (process.env.NEXT_PUBLIC_SARVAM_API_KEY) return process.env.NEXT_PUBLIC_SARVAM_API_KEY;
-    if (process.env.REACT_APP_SARVAM_API_KEY) return process.env.REACT_APP_SARVAM_API_KEY;
     if (process.env.VITE_SARVAM_API_KEY) return process.env.VITE_SARVAM_API_KEY;
+    // Fallback to standard if bundler replaced it
+    if (process.env.SARVAM_API_KEY) return process.env.SARVAM_API_KEY;
   }
   // @ts-ignore
   if (typeof import.meta !== 'undefined' && import.meta.env) {
     // @ts-ignore
-    if (import.meta.env.SARVAM_API_KEY) return import.meta.env.SARVAM_API_KEY;
+    if (import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY) return import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY;
     // @ts-ignore
     if (import.meta.env.VITE_SARVAM_API_KEY) return import.meta.env.VITE_SARVAM_API_KEY;
     // @ts-ignore
-    if (import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY) return import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY;
+    if (import.meta.env.SARVAM_API_KEY) return import.meta.env.SARVAM_API_KEY;
   }
   return '';
 };
@@ -23,12 +25,42 @@ const SARVAM_API_KEY = getSarvamKey();
 // Helper to split long text into chunks
 const chunkText = (text: string, maxLength: number = 400): string[] => {
   const chunks: string[] = [];
-  let currentChunk = '';
   
-  // Split by sentence endings for natural pauses
-  const sentences = text.split(/([.?!।]\s+)/);
+  // 1. Split by sentence endings
+  const rawSentences = text.split(/([.?!।]\s+)/);
+  const sentences: string[] = [];
+  
+  // Re-assemble split punctuation
+  for (let i = 0; i < rawSentences.length; i += 2) {
+    const s = rawSentences[i];
+    const p = rawSentences[i + 1] || '';
+    if (s || p) sentences.push(s + p);
+  }
+
+  let currentChunk = '';
 
   for (const part of sentences) {
+    // If a single sentence is huge (rare but possible), force split it
+    if (part.length > maxLength) {
+        if (currentChunk) {
+            chunks.push(currentChunk.trim());
+            currentChunk = '';
+        }
+        // Split by words
+        const words = part.split(' ');
+        let subChunk = '';
+        for(const w of words) {
+            if (subChunk.length + w.length + 1 > maxLength) {
+                chunks.push(subChunk.trim());
+                subChunk = w + ' ';
+            } else {
+                subChunk += w + ' ';
+            }
+        }
+        if (subChunk) currentChunk = subChunk;
+        continue;
+    }
+
     if (currentChunk.length + part.length > maxLength) {
       if (currentChunk) chunks.push(currentChunk.trim());
       currentChunk = part;
@@ -45,25 +77,26 @@ const chunkText = (text: string, maxLength: number = 400): string[] => {
 
 // Helper to find the start of the 'data' chunk in a WAV file
 const findDataChunkOffset = (view: DataView): { offset: number, size: number } | null => {
-  // RIFF(4) + Size(4) + WAVE(4) = 12 bytes
-  let offset = 12; 
-  while (offset < view.byteLength) {
-    // Read Chunk ID (4 bytes)
-    const chunkId = String.fromCharCode(
-      view.getUint8(offset),
-      view.getUint8(offset + 1),
-      view.getUint8(offset + 2),
-      view.getUint8(offset + 3)
-    );
-    // Read Chunk Size (4 bytes, little endian)
-    const chunkSize = view.getUint32(offset + 4, true);
+  try {
+    let offset = 12; // Skip RIFF(4) + Size(4) + WAVE(4)
+    while (offset < view.byteLength) {
+      if (offset + 8 > view.byteLength) break;
+      
+      const chunkId = String.fromCharCode(
+        view.getUint8(offset),
+        view.getUint8(offset + 1),
+        view.getUint8(offset + 2),
+        view.getUint8(offset + 3)
+      );
+      const chunkSize = view.getUint32(offset + 4, true);
 
-    if (chunkId === 'data') {
-      return { offset: offset + 8, size: chunkSize };
+      if (chunkId === 'data') {
+        return { offset: offset + 8, size: chunkSize };
+      }
+      offset += 8 + chunkSize;
     }
-
-    // Move to next chunk
-    offset += 8 + chunkSize;
+  } catch (e) {
+    console.warn("Error parsing WAV structure", e);
   }
   return null;
 };
@@ -73,7 +106,6 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
   if (base64List.length === 1) return `data:audio/wav;base64,${base64List[0]}`;
 
   try {
-    // 1. Decode all base64 to buffers
     const audioBuffers = base64List.map(b64 => {
       const binaryString = atob(b64);
       const bytes = new Uint8Array(binaryString.length);
@@ -83,7 +115,6 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
       return bytes;
     });
 
-    // 2. Extract raw PCM data from each WAV
     const pcmParts: Uint8Array[] = [];
     let totalLength = 0;
 
@@ -92,39 +123,43 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
       const dataInfo = findDataChunkOffset(view);
       
       if (dataInfo) {
-        // Extract strictly the audio data, skipping header/metadata
+        // Robust way: Found the actual data chunk
         const pcmData = buffer.slice(dataInfo.offset, dataInfo.offset + dataInfo.size);
         pcmParts.push(pcmData);
         totalLength += pcmData.length;
       } else {
-        console.warn("Could not find data chunk in a WAV segment, skipping.");
+        // Fallback way: Assume standard 44 byte header if parsing fails
+        // This prevents dropping chunks if the header is slightly non-standard but still playable raw
+        console.warn("Could not find data chunk, using fallback strip (44 bytes).");
+        if (buffer.length > 44) {
+            const pcmData = buffer.slice(44);
+            pcmParts.push(pcmData);
+            totalLength += pcmData.length;
+        }
       }
     }
 
-    // 3. Create a clean 44-byte WAV header
+    if (totalLength === 0) return `data:audio/wav;base64,${base64List[0]}`;
+
+    // Create a fresh standard 44-byte WAV header
     const header = new ArrayBuffer(44);
     const view = new DataView(header);
     
-    // RIFF
     writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + totalLength, true); // File size
+    view.setUint32(4, 36 + totalLength, true); 
     writeString(view, 8, 'WAVE');
-    
-    // fmt chunk
     writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-    view.setUint16(20, 1, true); // AudioFormat (1 = PCM)
-    view.setUint16(22, 1, true); // NumChannels (Mono = 1) - Sarvam usually returns mono
-    view.setUint32(24, 16000, true); // SampleRate (16kHz)
-    view.setUint32(28, 16000 * 1 * 2, true); // ByteRate
-    view.setUint16(32, 2, true); // BlockAlign
-    view.setUint16(34, 16, true); // BitsPerSample
-
-    // data chunk
+    view.setUint32(16, 16, true); 
+    view.setUint16(20, 1, true); 
+    view.setUint16(22, 1, true); 
+    view.setUint32(24, 16000, true); 
+    view.setUint32(28, 16000 * 1 * 2, true); 
+    view.setUint16(32, 2, true); 
+    view.setUint16(34, 16, true); 
     writeString(view, 36, 'data');
     view.setUint32(40, totalLength, true);
 
-    // 4. Concatenate Header + All PCM Parts
+    // Concatenate
     const finalBuffer = new Uint8Array(44 + totalLength);
     finalBuffer.set(new Uint8Array(header), 0);
     
@@ -134,10 +169,9 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
       offset += part.length;
     }
 
-    // 5. Convert back to base64
+    // Convert to base64
     let binary = '';
     const len = finalBuffer.byteLength;
-    // Process in chunks to avoid call stack size exceeded
     const CHUNK_SIZE = 8192;
     for (let i = 0; i < len; i += CHUNK_SIZE) {
         binary += String.fromCharCode.apply(null, Array.from(finalBuffer.subarray(i, Math.min(i + CHUNK_SIZE, len))));
@@ -147,7 +181,7 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
 
   } catch (e) {
     console.error("Error merging WAVs", e);
-    // Fallback: return the first chunk so at least something plays
+    // Ultimate fallback: Just play the first chunk
     return `data:audio/wav;base64,${base64List[0]}`; 
   }
 };
@@ -160,7 +194,7 @@ const writeString = (view: DataView, offset: number, string: string) => {
 
 export const speechToText = async (audioBlob: Blob): Promise<string> => {
   if (!SARVAM_API_KEY) {
-    throw new Error("SARVAM_API_KEY is missing in Environment Variables");
+    throw new Error("KEY_MISSING: NEXT_PUBLIC_SARVAM_API_KEY not found in env.");
   }
 
   const formData = new FormData();
@@ -177,7 +211,8 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
     });
 
     if (!response.ok) {
-      throw new Error(`ASR API Error: ${response.statusText}`);
+      const errText = await response.text();
+      throw new Error(`Sarvam ASR Failed (${response.status}): ${errText}`);
     }
 
     const data = await response.json();
@@ -190,16 +225,16 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
 
 export const textToSpeech = async (text: string): Promise<string> => {
   if (!SARVAM_API_KEY) {
-     throw new Error("SARVAM_API_KEY is missing in Environment Variables");
+     throw new Error("KEY_MISSING: NEXT_PUBLIC_SARVAM_API_KEY not found. Please rename your variable in Vercel.");
   }
 
   try {
     const chunks = chunkText(text);
     console.log(`TTS: Processing ${chunks.length} chunks.`);
     
-    // Process sequentially to preserve order and avoid rate limits
     const audioBase64List: string[] = [];
 
+    // Limit concurrency to prevent rate limits or mixups
     for (const chunk of chunks) {
       const response = await fetch('https://api.sarvam.ai/text-to-speech', {
         method: 'POST',
@@ -221,7 +256,9 @@ export const textToSpeech = async (text: string): Promise<string> => {
       });
 
       if (!response.ok) {
-        console.error("TTS Chunk Failed", await response.text());
+        const errText = await response.text();
+        console.error(`TTS Chunk Failed (${response.status}):`, errText);
+        // We continue to next chunk to at least get partial audio if possible
         continue;
       }
 
@@ -232,10 +269,9 @@ export const textToSpeech = async (text: string): Promise<string> => {
     }
 
     if (audioBase64List.length === 0) {
-      throw new Error("No audio generated from Sarvam");
+      throw new Error("API_ERROR: Sarvam generated 0 audio chunks.");
     }
 
-    // Merge chunks into one valid WAV file
     return await mergeWavBase64(audioBase64List);
 
   } catch (error) {

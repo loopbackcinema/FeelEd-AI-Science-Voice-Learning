@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [showResult, setShowResult] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -91,6 +92,7 @@ const App: React.FC = () => {
     setIsProcessing(true);
     setLoadingMessage('Listening... (கேட்கிறது...)');
     setStep('PROCESSING');
+    setAudioError(null);
     
     const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
     
@@ -106,10 +108,11 @@ const App: React.FC = () => {
 
     } catch (error: any) {
       console.error(error);
-      if (error.message.includes("SARVAM_API_KEY")) {
-        alert("Configuration Error: SARVAM_API_KEY is missing in Vercel. Please check Project Settings.");
+      const msg = error.message || "Unknown Error";
+      if (msg.includes("KEY_MISSING")) {
+        alert("SETUP ERROR: " + msg);
       } else {
-        alert("Error processing audio. Please try again or type your question.");
+        alert("Error processing: " + msg);
       }
       setStep('INPUT');
     } finally {
@@ -142,11 +145,7 @@ const App: React.FC = () => {
         setSession(prev => ({ ...prev, explanationAudioUrl: audioUrl }));
       } catch (audioError: any) {
          console.error("Audio Generation Failed:", audioError);
-         if (audioError.message.includes("SARVAM_API_KEY")) {
-           alert("Audio Disabled: SARVAM_API_KEY missing. You can still read the text.");
-         } else {
-           alert("Audio generation failed. Please read the text below.");
-         }
+         setAudioError(audioError.message || "Unknown Audio Error");
          setSession(prev => ({ ...prev, explanationAudioUrl: null }));
       }
 
@@ -248,6 +247,7 @@ const App: React.FC = () => {
         actionTaken: null,
      });
      setShowResult(false);
+     setAudioError(null);
   }
 
   // --- Renders ---
@@ -259,6 +259,19 @@ const App: React.FC = () => {
       <p className="text-sm font-tamil opacity-90">Science Voice Learning / அறிவியல் குரல் வழி கற்றல்</p>
     </div>
   );
+
+  // Debug Footer
+  const DebugFooter = () => (
+      <div className="fixed bottom-0 left-0 w-full p-1 bg-slate-900 text-slate-500 text-[10px] flex justify-center gap-4">
+        <span>Client: v1.1</span>
+        <span>
+          Gemini Key: { process.env.NEXT_PUBLIC_GEMINI_API_KEY ? '✅' : '❌' }
+        </span>
+        <span>
+          Sarvam Key: { process.env.NEXT_PUBLIC_SARVAM_API_KEY ? '✅' : '❌' }
+        </span>
+      </div>
+  )
 
   // Step 1: Class Selection
   const renderClassSelection = () => (
@@ -370,8 +383,9 @@ const App: React.FC = () => {
               onPlay={() => setIsPlaying(true)}
           />
         ) : (
-          <div className="p-4 bg-red-50 text-red-600 rounded-lg text-center font-tamil border border-red-200">
-             Audio Unavailable (ஒலி கிடைக்கவில்லை)
+          <div className="p-4 bg-red-50 text-red-600 rounded-lg text-center font-tamil border border-red-200 text-sm">
+             <div className="font-bold">Audio Unavailable / ஒலி இல்லை</div>
+             <div>{audioError || "Unknown Error"}</div>
           </div>
         )}
       </div>
@@ -469,6 +483,7 @@ const App: React.FC = () => {
         {step === 'QUIZ' && renderQuiz()}
         {step === 'RESULT' && renderResult()}
       </div>
+      <DebugFooter />
     </div>
   );
 };
