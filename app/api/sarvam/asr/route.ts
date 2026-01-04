@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Note: in 'nodejs' runtime, req.formData() handles multipart parsing automatically in recent Next.js versions
     const formData = await req.formData();
     
     const response = await fetch('https://api.sarvam.ai/speech-to-text-translate', {

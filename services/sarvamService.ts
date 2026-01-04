@@ -157,7 +157,7 @@ const writeString = (view: DataView, offset: number, string: string) => {
   }
 };
 
-// --- API CALLS (Proxied via Next.js API Routes) ---
+// --- API CALLS (Proxied via Vercel API Routes) ---
 
 export const speechToText = async (audioBlob: Blob): Promise<string> => {
   const formData = new FormData();
@@ -165,6 +165,7 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
   formData.append('model', 'saaras:v1'); 
 
   try {
+    // Point to /api/sarvam/asr (Vercel standard)
     const response = await fetch('/api/sarvam/asr', {
       method: 'POST',
       body: formData,
@@ -179,7 +180,7 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
       } catch (e) {
         errorMessage = errorText;
       }
-      throw new Error(`ASR Error: ${errorMessage}`);
+      throw new Error(`ASR Error (${response.status}): ${errorMessage}`);
     }
 
     const data = await response.json();
@@ -200,7 +201,7 @@ export const textToSpeech = async (text: string): Promise<string> => {
 
     // Process chunks sequentially
     for (const chunk of chunks) {
-      // Call local API route which holds the secret key
+      // Point to /api/sarvam/tts (Vercel standard)
       const response = await fetch('/api/sarvam/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
