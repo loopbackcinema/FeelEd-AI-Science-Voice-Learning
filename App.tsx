@@ -74,16 +74,20 @@ const App: React.FC = () => {
     setStep('INPUT');
   };
 
-  // Improved Voice Input Logic
+  const getSupportedMimeType = () => {
+    const types = ['audio/webm', 'audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/wav'];
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) return type;
+    }
+    return '';
+  };
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const options = { mimeType: 'audio/webm' };
-      if (!MediaRecorder.isTypeSupported('audio/webm')) {
-          options.mimeType = 'audio/ogg';
-      }
+      const mimeType = getSupportedMimeType();
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       
-      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -92,6 +96,10 @@ const App: React.FC = () => {
       };
 
       mediaRecorder.onstop = async () => {
+        if (audioChunksRef.current.length === 0) {
+            alert("No audio recorded / ஒலி பதிவு செய்யப்படவில்லை");
+            return;
+        }
         setIsProcessing(true);
         setLoadingMessage('கேட்கிறது (Listening)...');
         setStep('PROCESSING');
@@ -105,17 +113,17 @@ const App: React.FC = () => {
           await processContentGeneration(transcript);
         } catch (error: any) {
           console.error(error);
-          alert("மன்னிக்கவும், மீண்டும் பேசவும் (Try speaking again).");
+          alert("மன்னிக்கவும், மீண்டும் பேசவும். (Magic Engine missed that).");
           setStep('INPUT');
         } finally {
           setIsProcessing(false);
         }
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(100);
       setIsRecording(true);
     } catch (err) {
-      console.error("Error accessing mic:", err);
+      console.error("Mic Access Error:", err);
       alert("Microphone access is needed. / மைக்ரோஃபோன் அனுமதி தேவை.");
     }
   };
@@ -213,12 +221,10 @@ const App: React.FC = () => {
     } catch(e) {}
   };
 
-  // --- UI Components ---
-
   const HeaderNav = () => (
-    <div className="w-full flex items-center justify-between p-4 bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-indigo-100">
+    <div className="w-full flex items-center justify-between p-4 bg-white/90 backdrop-blur-md sticky top-0 z-30 border-b border-indigo-100">
       <div className="flex items-center gap-2 cursor-pointer" onClick={resetApp}>
-        <div className="bg-indigo-600 p-2 rounded-xl shadow-lg">
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-2 rounded-xl shadow-lg">
           <span className="text-white text-xl">🪄</span>
         </div>
         <h1 className="text-2xl font-black text-indigo-900 tracking-tight">FeelEd AI</h1>
@@ -226,7 +232,7 @@ const App: React.FC = () => {
       {step !== 'CLASS_SELECT' && (
         <button 
           onClick={resetApp}
-          className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-full text-sm font-bold font-tamil border border-indigo-200 hover:bg-indigo-100 transition active:scale-95"
+          className="bg-indigo-50 text-indigo-700 px-5 py-2 rounded-full text-sm font-black font-tamil border-2 border-indigo-100 hover:bg-indigo-100 transition active:scale-95 shadow-sm"
         >
           Back to Story Engine (முகப்பு)
         </button>
@@ -235,49 +241,55 @@ const App: React.FC = () => {
   );
 
   const renderClassSelection = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 animate-fade-in text-center">
-      <div className="mb-8 scale-110">
-         <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 mb-2 drop-shadow-sm">FeelEd AI</h1>
-         <h2 className="text-2xl font-bold text-indigo-400 uppercase tracking-widest">Magic Story Engine</h2>
+    <div className="flex flex-col items-center justify-center min-h-[85vh] px-4 animate-fade-in text-center relative overflow-hidden">
+      <div className="mb-10 scale-125 transition-transform duration-700">
+         <h1 className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 mb-2 drop-shadow-2xl">FeelEd AI</h1>
+         <h2 className="text-4xl font-black text-indigo-900 tracking-tighter mt-4">Magic Story Engine</h2>
       </div>
 
-      <div className="bg-white/40 backdrop-blur-sm p-6 rounded-[2rem] border-2 border-white shadow-xl mb-10 w-full max-w-md">
-        <p className="font-tamil text-2xl text-indigo-900 font-bold mb-2">அறிவியல் குரல் வழி கதைகள் கேட்கலாம் வாங்க!</p>
-        <p className="text-indigo-500 font-bold italic tracking-tight">Hard topics turn into magic stories</p>
+      <div className="bg-white/40 backdrop-blur-md p-8 rounded-[3rem] border-4 border-white shadow-2xl mb-12 w-full max-w-xl transform hover:rotate-1 transition-all">
+        <p className="font-tamil text-3xl text-indigo-900 font-black mb-4 leading-tight">அறிவியல் குரல் வழி கதைகள் கேட்கலாம் வாங்க!</p>
+        <p className="text-indigo-600 font-black italic text-xl tracking-wide opacity-80">Hard topics turn into magic stories</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 w-full max-w-xs">
+      <div className="grid grid-cols-1 gap-6 w-full max-w-sm">
         {['6', '7', '8'].map((cls) => (
           <button
             key={cls}
             onClick={() => handleClassSelect(cls as ClassLevel)}
-            className="group relative bg-white border-2 border-indigo-200 rounded-3xl p-6 text-3xl font-black shadow-lg hover:border-indigo-500 hover:bg-indigo-50 transition-all transform hover:scale-105 active:scale-95 flex justify-between items-center overflow-hidden"
+            className="group relative bg-white border-4 border-indigo-50 rounded-[2.5rem] p-8 text-4xl font-black shadow-2xl hover:border-indigo-400 hover:bg-indigo-50 transition-all transform hover:scale-105 active:scale-95 flex justify-between items-center overflow-hidden"
           >
             <span className="relative z-10 text-indigo-900">Class {cls}</span>
             <span className="font-tamil relative z-10 text-indigo-600">{cls} ஆம் வகுப்பு</span>
+            <div className="absolute inset-0 bg-indigo-100 opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
         ))}
+      </div>
+
+      <div className="mt-16 text-indigo-300 font-black text-center">
+         <p className="text-sm tracking-[0.2em] mb-1">AUDIO POWERED BY SARVAM</p>
+         <p className="text-[10px] tracking-widest opacity-60">ALL RIGHTS RESERVED FEELED AI 2026</p>
       </div>
     </div>
   );
 
   const renderTopicSelection = () => (
-    <div className="p-4 animate-fade-in max-w-md mx-auto">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-black text-indigo-900 font-tamil">தலைப்பைத் தேர்ந்தெடுக்கவும்</h2>
-        <p className="text-indigo-400 font-bold">Select a Magic Topic</p>
+    <div className="p-4 animate-fade-in max-w-lg mx-auto py-10">
+      <div className="text-center mb-10">
+        <h2 className="text-4xl font-black text-indigo-900 font-tamil mb-2">தலைப்பைத் தேர்ந்தெடுக்கவும்</h2>
+        <p className="text-indigo-400 font-bold uppercase tracking-widest text-sm">Pick your adventure</p>
       </div>
       <div className="space-y-4">
         {CURRICULUM[session.classLevel!].map((t) => (
           <button
             key={t.id}
             onClick={() => handleTopicSelect(t)}
-            className="w-full bg-white border-b-8 border-indigo-100 rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-indigo-300 text-left transition transform hover:-translate-y-1 active:scale-95 flex items-center gap-4"
+            className="w-full bg-white border-b-8 border-indigo-100 rounded-[2.5rem] p-8 shadow-xl hover:shadow-2xl hover:border-indigo-300 text-left transition transform hover:-translate-y-1 active:scale-95 flex items-center gap-6"
           >
-            <div className="text-4xl bg-indigo-50 p-3 rounded-2xl">📘</div>
+            <div className="text-5xl bg-indigo-50 p-4 rounded-3xl shadow-inner">📘</div>
             <div>
-               <div className="font-black text-xl text-indigo-900 leading-tight">{t.en}</div>
-               <div className="font-tamil text-indigo-500 text-xl font-bold">{t.ta}</div>
+               <div className="font-black text-2xl text-indigo-900 leading-tight">{t.en}</div>
+               <div className="font-tamil text-indigo-500 text-2xl font-bold mt-1">{t.ta}</div>
             </div>
           </button>
         ))}
@@ -286,81 +298,81 @@ const App: React.FC = () => {
   );
 
   const renderInput = () => (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 animate-fade-in">
-      <div className="text-center mb-10">
-        <h2 className="text-3xl font-black text-indigo-900 font-tamil mb-2">கேள்வி கேளுங்கள்</h2>
-        <p className="text-indigo-400 font-bold">Speak or Type your magic question</p>
+    <div className="flex flex-col items-center justify-center min-h-[75vh] p-6 animate-fade-in">
+      <div className="text-center mb-12">
+        <h2 className="text-4xl font-black text-indigo-900 font-tamil mb-2">கேள்வி கேளுங்கள்</h2>
+        <p className="text-indigo-400 font-bold tracking-widest uppercase">The magic engine is listening</p>
       </div>
 
       <button
         onClick={isRecording ? stopRecording : startRecording}
         disabled={isProcessing}
-        className={`w-40 h-40 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all border-8 relative group ${
+        className={`w-48 h-48 rounded-full flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(79,70,229,0.3)] transition-all border-[10px] relative group ${
           isRecording 
           ? 'bg-red-500 border-red-200 text-white animate-pulse' 
-          : 'bg-indigo-600 border-indigo-200 text-white hover:bg-indigo-700 active:scale-90'
+          : 'bg-gradient-to-br from-indigo-600 to-purple-600 border-white text-white hover:scale-105 active:scale-90'
         }`}
       >
         {isRecording ? <StopIcon /> : <MicIcon />}
         <span className="mt-2 text-xs font-black uppercase tracking-widest">{isRecording ? "Stop" : "Speak"}</span>
-        {!isRecording && <div className="absolute -inset-4 border-2 border-indigo-400 rounded-full animate-ping opacity-20"/>}
+        {!isRecording && <div className="absolute -inset-4 border-2 border-indigo-300 rounded-full animate-ping opacity-20"/>}
       </button>
       
-      <p className="mt-8 text-indigo-900 text-center font-tamil font-black text-2xl">
+      <p className="mt-10 text-indigo-900 text-center font-tamil font-black text-3xl">
         {isRecording ? "நாங்கள் கேட்கிறோம்..." : "பேச தட்டவும்"}
       </p>
 
-      <div className="mt-16 w-full max-w-md">
-          <div className="flex gap-2 bg-white p-2 rounded-[2rem] shadow-xl border-2 border-indigo-100">
+      <div className="mt-20 w-full max-w-lg">
+          <div className="flex gap-2 bg-white p-3 rounded-[2.5rem] shadow-2xl border-4 border-indigo-50">
             <input 
                 type="text" 
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
-                placeholder="கேள்வியைத் தட்டச்சு செய்க..." 
-                className="flex-1 p-4 rounded-3xl bg-transparent focus:outline-none font-tamil text-lg font-bold"
+                placeholder="இங்கே தட்டச்சு செய்யவும்..." 
+                className="flex-1 p-5 rounded-3xl bg-transparent focus:outline-none font-tamil text-xl font-bold text-indigo-900"
                 onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
             />
             <button 
               onClick={handleTextSubmit}
-              className="bg-indigo-600 text-white p-4 rounded-[1.5rem] shadow-lg active:scale-95 transition flex items-center gap-2"
+              className="bg-indigo-600 text-white px-8 py-4 rounded-[2rem] shadow-lg active:scale-95 transition flex items-center gap-3 hover:bg-indigo-700"
             >
-              <span className="font-tamil font-bold hidden sm:block">அனுப்பு</span>
+              <span className="font-tamil font-black text-lg">அனுப்பு</span>
               <SendIcon />
             </button>
           </div>
-          <p className="text-center mt-4 text-xs text-indigo-300 font-black uppercase tracking-widest">Type and press Send / அனுப்பு</p>
+          <p className="text-center mt-5 text-xs text-indigo-300 font-black uppercase tracking-widest">Type your question and press send</p>
       </div>
     </div>
   );
 
   const renderProcessing = () => (
     <div className="flex flex-col items-center justify-center min-h-[60vh] p-12 text-center animate-fade-in">
-        <div className="relative mb-12">
-          <div className="w-32 h-32 border-[12px] border-indigo-50 border-t-indigo-600 rounded-full animate-spin"></div>
+        <div className="relative mb-16">
+          <div className="w-40 h-40 border-[16px] border-indigo-50 border-t-indigo-600 rounded-full animate-spin"></div>
           <div className="absolute inset-0 flex items-center justify-center">
             <MagicWand />
           </div>
         </div>
-        <p className="font-tamil text-3xl font-black text-indigo-900 mb-4">{loadingMessage}</p>
-        <p className="text-indigo-400 font-bold uppercase tracking-widest animate-pulse">Turning science into magic...</p>
+        <p className="font-tamil text-4xl font-black text-indigo-900 mb-6">{loadingMessage}</p>
+        <p className="text-indigo-400 font-black uppercase tracking-[0.3em] animate-pulse">Turning curiosity into magic...</p>
     </div>
   );
 
   const renderPlayback = () => (
-    <div className="flex flex-col p-4 animate-fade-in max-w-xl mx-auto pb-32">
-      <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden mb-8 border-b-[12px] border-indigo-100">
-        <div className="bg-indigo-600 p-6 text-white text-center">
-          <h3 className="text-xs font-black opacity-80 uppercase tracking-widest mb-1">Your Magic Story:</h3>
-          <p className="font-tamil text-2xl font-bold leading-tight">{session.userQuery}</p>
+    <div className="flex flex-col p-4 animate-fade-in max-w-2xl mx-auto pb-40">
+      <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden mb-10 border-b-[16px] border-indigo-100/50">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-white text-center">
+          <h3 className="text-xs font-black opacity-70 uppercase tracking-widest mb-2">Magic Story about:</h3>
+          <p className="font-tamil text-3xl font-black leading-tight drop-shadow-sm">{session.userQuery}</p>
         </div>
-        <div className="p-8 bg-gradient-to-b from-white to-indigo-50/30">
-          <p className="font-tamil text-2xl leading-relaxed text-indigo-900 font-medium whitespace-pre-wrap">{session.explanationText}</p>
+        <div className="p-10 bg-gradient-to-b from-white to-indigo-50/20">
+          <p className="font-tamil text-2xl leading-relaxed text-indigo-900 font-bold whitespace-pre-wrap">{session.explanationText}</p>
         </div>
       </div>
 
-      <div className="w-full mb-10 sticky bottom-28 z-20">
+      <div className="w-full mb-12 sticky bottom-32 z-20">
         {session.explanationAudioUrl ? (
-          <div className="bg-white p-5 rounded-full shadow-2xl border-4 border-indigo-100 flex items-center">
+          <div className="bg-white/95 backdrop-blur-sm p-6 rounded-[2.5rem] shadow-[0_15px_40px_rgba(0,0,0,0.1)] border-4 border-indigo-50 flex items-center">
             <audio 
                 ref={audioPlayerRef} 
                 src={session.explanationAudioUrl} 
@@ -372,23 +384,23 @@ const App: React.FC = () => {
             />
           </div>
         ) : (
-          <div className="p-4 bg-red-50 text-red-600 rounded-3xl text-center font-tamil border-2 border-red-100 font-bold">
+          <div className="p-6 bg-red-50 text-red-600 rounded-[2rem] text-center font-tamil border-4 border-red-100 font-bold text-xl shadow-lg">
              ஒலி கிடைக்கவில்லை (Audio Error)
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        <button onClick={() => handleAction('understood')} className="w-full bg-green-500 text-white p-6 rounded-3xl text-2xl font-black font-tamil shadow-xl hover:bg-green-600 transition active:scale-95 flex items-center justify-center gap-4">
+      <div className="grid grid-cols-1 gap-5">
+        <button onClick={() => handleAction('understood')} className="w-full bg-green-500 text-white p-8 rounded-[2rem] text-3xl font-black font-tamil shadow-[0_15px_30px_rgba(34,197,94,0.3)] hover:bg-green-600 transition active:scale-95 flex items-center justify-center gap-5">
           புரிந்தது, விளையாடுவோம்! <span>🎮</span>
         </button>
         
-        <div className="grid grid-cols-2 gap-4">
-            <button onClick={() => handleAction('explain_again')} className="bg-white text-indigo-600 p-6 rounded-3xl font-black font-tamil shadow border-2 border-indigo-50 hover:bg-indigo-50 transition active:scale-95">
+        <div className="grid grid-cols-2 gap-5">
+            <button onClick={() => handleAction('explain_again')} className="bg-white text-indigo-600 p-8 rounded-[2rem] font-black font-tamil text-xl shadow-xl border-4 border-indigo-50 hover:bg-indigo-50 transition active:scale-95">
              மீண்டும் விளக்கவும்
             </button>
-            <button onClick={() => handleAction('replay')} className="bg-indigo-100 text-indigo-700 p-6 rounded-3xl font-black font-tamil shadow border-2 border-indigo-200 hover:bg-indigo-200 transition active:scale-95 flex items-center justify-center gap-2">
-             மீண்டும் கேட்க {isPlaying && <span className="w-3 h-3 bg-indigo-500 rounded-full animate-ping"/>}
+            <button onClick={() => handleAction('replay')} className="bg-indigo-100 text-indigo-700 p-8 rounded-[2rem] font-black font-tamil text-xl shadow-xl border-4 border-indigo-200 hover:bg-indigo-200 transition active:scale-95 flex items-center justify-center gap-3">
+             மீண்டும் கேட்க {isPlaying && <span className="w-4 h-4 bg-indigo-500 rounded-full animate-ping"/>}
             </button>
         </div>
       </div>
@@ -396,25 +408,25 @@ const App: React.FC = () => {
   );
 
   const renderQuiz = () => (
-    <div className="p-4 max-w-xl mx-auto animate-fade-in pb-32">
-        <div className="text-center mb-10">
-           <h2 className="text-4xl font-black font-tamil text-indigo-900 mb-2">மினி வினாடி வினா</h2>
-           <p className="text-indigo-400 font-bold tracking-widest uppercase text-sm">Unlock your magic power!</p>
+    <div className="p-4 max-w-2xl mx-auto animate-fade-in py-10 pb-40">
+        <div className="text-center mb-12">
+           <h2 className="text-5xl font-black font-tamil text-indigo-900 mb-3">மினி வினாடி வினா</h2>
+           <p className="text-indigo-400 font-black tracking-widest uppercase text-sm">Test your magic memory!</p>
         </div>
 
-        <div className="space-y-8">
+        <div className="space-y-10">
             {session.quiz.map((q, qIdx) => (
-                <div key={q.id} className="bg-white p-8 rounded-[2rem] shadow-xl border-2 border-indigo-50 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500"/>
-                    <p className="font-tamil font-black text-2xl mb-6 text-indigo-900 leading-tight">{qIdx + 1}. {q.question}</p>
-                    <div className="space-y-3">
+                <div key={q.id} className="bg-white p-10 rounded-[3rem] shadow-2xl border-4 border-indigo-50 relative overflow-hidden group hover:border-indigo-200 transition-all">
+                    <div className="absolute top-0 left-0 w-3 h-full bg-indigo-600"/>
+                    <p className="font-tamil font-black text-2xl mb-8 text-indigo-900 leading-tight">{qIdx + 1}. {q.question}</p>
+                    <div className="space-y-4">
                         {q.options.map((opt, oIdx) => (
                             <button
                                 key={oIdx}
                                 onClick={() => handleQuizAnswer(qIdx, oIdx)}
-                                className={`w-full text-left p-5 rounded-2xl font-tamil font-bold text-xl transition-all border-4 ${
+                                className={`w-full text-left p-6 rounded-3xl font-tamil font-black text-2xl transition-all border-4 ${
                                     quizAnswers[qIdx] === oIdx 
-                                    ? 'bg-indigo-600 border-indigo-300 text-white shadow-lg scale-[1.02]' 
+                                    ? 'bg-indigo-600 border-indigo-300 text-white shadow-[0_10px_20px_rgba(79,70,229,0.3)] scale-[1.03]' 
                                     : 'bg-indigo-50 border-transparent text-indigo-900 hover:bg-indigo-100'
                                 }`}
                             >
@@ -429,7 +441,7 @@ const App: React.FC = () => {
         <button 
             disabled={quizAnswers.includes(-1)}
             onClick={submitQuiz}
-            className="w-full mt-12 bg-indigo-600 disabled:bg-indigo-200 text-white p-8 rounded-[2rem] text-2xl font-black font-tamil shadow-2xl transform active:scale-95 transition"
+            className="w-full mt-16 bg-indigo-600 disabled:bg-indigo-200 text-white p-10 rounded-[3rem] text-3xl font-black font-tamil shadow-[0_20px_40px_rgba(79,70,229,0.3)] transform active:scale-95 transition hover:bg-indigo-700"
         >
             முடிவுகளை காட்டு (Check Results)
         </button>
@@ -437,23 +449,23 @@ const App: React.FC = () => {
   );
 
   const renderResult = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] p-6 text-center animate-fade-in">
-        <div className="text-9xl mb-8 transform hover:rotate-12 transition-transform drop-shadow-2xl">
-            {session.score === session.quiz.length ? '🏆' : session.score > 0 ? '✨' : '📚'}
+    <div className="flex flex-col items-center justify-center min-h-[85vh] p-6 text-center animate-fade-in relative">
+        <div className="text-[12rem] mb-10 transform hover:rotate-12 transition-transform drop-shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-bounce">
+            {session.score === session.quiz.length ? '🏆' : session.score > 0 ? '🎖️' : '🔭'}
         </div>
-        <h2 className="text-5xl font-black font-tamil mb-4 text-indigo-900">
+        <h2 className="text-6xl font-black font-tamil mb-6 text-indigo-900">
             {session.score === session.quiz.length ? 'அற்புதம்!' : 'நன்று!'}
         </h2>
-        <div className="bg-white px-12 py-8 rounded-[3rem] shadow-2xl border-8 border-indigo-100 mb-12">
-            <p className="text-7xl font-black text-indigo-600">
-                {session.score} / {session.quiz.length}
+        <div className="bg-white px-16 py-10 rounded-[4rem] shadow-2xl border-[12px] border-indigo-50 mb-16 relative">
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-6 py-1 rounded-full font-black text-xs tracking-widest uppercase">Score</div>
+            <p className="text-9xl font-black text-indigo-600">
+                {session.score}<span className="text-4xl text-indigo-200"> / {session.quiz.length}</span>
             </p>
-            <p className="text-sm font-black text-indigo-300 mt-4 uppercase tracking-[0.3em]">Magic Score</p>
         </div>
 
         <button 
             onClick={resetApp}
-            className="bg-indigo-600 text-white px-12 py-6 rounded-full text-3xl font-black font-tamil shadow-2xl hover:bg-indigo-700 transition transform hover:scale-110 active:scale-95"
+            className="bg-indigo-600 text-white px-16 py-8 rounded-full text-4xl font-black font-tamil shadow-2xl hover:bg-indigo-700 transition transform hover:scale-110 active:scale-95"
         >
             முகப்பு பக்கம் (Home)
         </button>
@@ -461,16 +473,17 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#FDFDFF] font-sans pb-20 overflow-x-hidden selection:bg-indigo-100">
-      {/* Decorative background sparkles */}
-      <div className="fixed inset-0 pointer-events-none opacity-20 overflow-hidden">
-        <div className="absolute top-20 left-10 text-4xl animate-pulse">✨</div>
-        <div className="absolute bottom-40 right-20 text-3xl animate-bounce">🪄</div>
-        <div className="absolute top-1/2 right-10 text-5xl opacity-40">⭐</div>
+    <div className="min-h-screen bg-[#F8FAFF] font-sans pb-10 overflow-x-hidden selection:bg-indigo-100">
+      {/* Dynamic Background elements */}
+      <div className="fixed inset-0 pointer-events-none opacity-20 overflow-hidden z-0">
+        <div className="absolute top-20 left-10 text-6xl animate-pulse">✨</div>
+        <div className="absolute bottom-60 right-20 text-5xl animate-bounce">🪄</div>
+        <div className="absolute top-1/2 right-10 text-7xl opacity-40">⭐</div>
+        <div className="absolute bottom-10 left-1/4 text-5xl animate-pulse delay-700">💫</div>
       </div>
 
       <HeaderNav />
-      <div className="max-w-4xl mx-auto relative z-10">
+      <div className="max-w-4xl mx-auto relative z-10 px-4">
         {step === 'CLASS_SELECT' && renderClassSelection()}
         {step === 'TOPIC_SELECT' && renderTopicSelection()}
         {step === 'INPUT' && renderInput()}
@@ -480,11 +493,13 @@ const App: React.FC = () => {
         {step === 'RESULT' && renderResult()}
       </div>
       
-      {/* Footer */}
-      <div className="fixed bottom-0 left-0 w-full p-3 bg-white/50 backdrop-blur-sm text-[10px] flex justify-center gap-6 text-indigo-300 font-black z-50">
-        <span className="tracking-widest">FEEL-ED MAGIC ENGINE v2.0</span>
-        <span className="tracking-widest">TAMIL SCIENCE PILOT</span>
-      </div>
+      {/* Fixed Branding Footer for non-home screens */}
+      {step !== 'CLASS_SELECT' && (
+        <div className="fixed bottom-0 left-0 w-full p-3 bg-white/50 backdrop-blur-sm text-[9px] flex justify-center gap-6 text-indigo-300 font-black z-50 uppercase tracking-[0.3em]">
+          <span>AUDIO BY SARVAM</span>
+          <span>FEELED AI 2026</span>
+        </div>
+      )}
     </div>
   );
 };

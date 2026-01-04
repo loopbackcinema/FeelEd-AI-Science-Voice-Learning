@@ -161,11 +161,20 @@ const writeString = (view: DataView, offset: number, string: string) => {
 
 export const speechToText = async (audioBlob: Blob): Promise<string> => {
   const formData = new FormData();
-  formData.append('file', audioBlob, 'audio.wav');
+  
+  // Extract extension from mime-type for better server-side detection
+  // e.g., audio/webm -> webm, audio/mp4 -> mp4
+  let extension = 'webm';
+  const mime = audioBlob.type.toLowerCase();
+  if (mime.includes('wav')) extension = 'wav';
+  else if (mime.includes('mp4')) extension = 'mp4';
+  else if (mime.includes('ogg')) extension = 'ogg';
+  else if (mime.includes('webm')) extension = 'webm';
+
+  formData.append('file', audioBlob, `audio.${extension}`);
   formData.append('model', 'saaras:v1'); 
 
   try {
-    // Point to /api/sarvam/asr (Vercel standard)
     const response = await fetch('/api/sarvam/asr', {
       method: 'POST',
       body: formData,
@@ -173,14 +182,14 @@ export const speechToText = async (audioBlob: Blob): Promise<string> => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      let errorMessage = response.statusText;
+      let errorMessage = `ASR Error (${response.status})`;
       try {
         const json = JSON.parse(errorText);
         if (json.error) errorMessage = json.error;
       } catch (e) {
         errorMessage = errorText;
       }
-      throw new Error(`ASR Error (${response.status}): ${errorMessage}`);
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
@@ -199,16 +208,14 @@ export const textToSpeech = async (text: string): Promise<string> => {
     const audioBase64List: string[] = [];
     let lastError = "Unknown error";
 
-    // Process chunks sequentially
     for (const chunk of chunks) {
-      // Point to /api/sarvam/tts (Vercel standard)
       const response = await fetch('/api/sarvam/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           inputs: [chunk],
           target_language_code: 'ta-IN',
-          speaker: 'anushka', // Updated to valid speaker for bulbul:v2
+          speaker: 'anushka',
           pitch: 0,
           pace: 1.0, 
           loudness: 1.5,
@@ -220,7 +227,6 @@ export const textToSpeech = async (text: string): Promise<string> => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.warn("TTS Chunk Proxy Failed:", errorText);
         try {
             const json = JSON.parse(errorText);
             lastError = json.error || errorText;
@@ -237,7 +243,7 @@ export const textToSpeech = async (text: string): Promise<string> => {
     }
 
     if (audioBase64List.length === 0) {
-      throw new Error(lastError); // Throw the actual error from the proxy
+      throw new Error(lastError);
     }
 
     return await mergeWavBase64(audioBase64List);
