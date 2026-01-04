@@ -38,6 +38,7 @@ const App: React.FC = () => {
   
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Thinking... (சிந்திக்கிறது...)');
   const [isPlaying, setIsPlaying] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [showResult, setShowResult] = useState(false);
@@ -88,6 +89,7 @@ const App: React.FC = () => {
 
   const handleRecordingStop = async () => {
     setIsProcessing(true);
+    setLoadingMessage('Listening... (கேட்கிறது...)');
     setStep('PROCESSING');
     
     const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
@@ -113,6 +115,7 @@ const App: React.FC = () => {
 
   const processContentGeneration = async (query: string, isSimplification: boolean = false) => {
     try {
+      setLoadingMessage('Writing Story... (கதை எழுதுகிறது...)');
       let storyText = "";
       
       if (isSimplification && session.explanationText) {
@@ -129,15 +132,22 @@ const App: React.FC = () => {
       }
 
       // 3. TTS
+      setLoadingMessage('Generating Audio... (ஒலி உருவாக்கப்படுகிறது...)');
       const audioUrl = await textToSpeech(storyText);
       setSession(prev => ({ ...prev, explanationAudioUrl: audioUrl }));
       setStep('PLAYBACK');
 
-      // Auto play
+      // Auto play attempt
       setTimeout(() => {
         if (audioPlayerRef.current) {
-          audioPlayerRef.current.play();
-          setIsPlaying(true);
+          const playPromise = audioPlayerRef.current.play();
+          if (playPromise !== undefined) {
+             playPromise.then(() => setIsPlaying(true))
+             .catch(error => {
+                console.log("Autoplay blocked, showing controls", error);
+                setIsPlaying(false);
+             });
+          }
         }
       }, 500);
 
@@ -158,6 +168,7 @@ const App: React.FC = () => {
       }
     } else if (action === 'explain_again') {
       setIsProcessing(true);
+      setLoadingMessage('Re-thinking... (மீண்டும் சிந்திக்கிறது...)');
       setStep('PROCESSING'); // Show loading
       await processContentGeneration(session.userQuery, true);
       setIsProcessing(false);
@@ -313,7 +324,7 @@ const App: React.FC = () => {
   const renderProcessing = () => (
     <div className="flex flex-col items-center justify-center p-12 text-center animate-fade-in">
         <div className="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mb-6"></div>
-        <p className="font-tamil text-xl text-slate-700">சிந்திக்கிறது... <br/> (Thinking...)</p>
+        <p className="font-tamil text-xl text-slate-700">{loadingMessage}</p>
     </div>
   )
 
@@ -329,13 +340,16 @@ const App: React.FC = () => {
         <p className="font-tamil text-lg leading-relaxed">{session.explanationText}</p>
       </div>
 
-      <audio 
-        ref={audioPlayerRef} 
-        src={session.explanationAudioUrl || ''} 
-        onEnded={() => setIsPlaying(false)}
-        onPlay={() => setIsPlaying(true)}
-        className="hidden"
-      />
+      <div className="w-full mb-6">
+        <audio 
+            ref={audioPlayerRef} 
+            src={session.explanationAudioUrl || ''} 
+            controls 
+            className="w-full rounded-lg shadow-sm border border-slate-200"
+            onEnded={() => setIsPlaying(false)}
+            onPlay={() => setIsPlaying(true)}
+        />
+      </div>
 
       <div className="mt-auto space-y-3">
         <p className="text-center text-slate-500 font-tamil mb-2">Did you understand? / புரிந்ததா?</p>
