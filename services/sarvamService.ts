@@ -1,29 +1,6 @@
-// Helper to safely get env vars by explicit checking
-const getSarvamKey = (): string => {
-  // Try standard Node/Next.js
-  if (typeof process !== 'undefined' && process.env) {
-    // Check for the user's preferred key first
-    if (process.env.SARVAM_API_KEY) return process.env.SARVAM_API_KEY;
-    if (process.env.NEXT_PUBLIC_SARVAM_API_KEY) return process.env.NEXT_PUBLIC_SARVAM_API_KEY;
-    if (process.env.REACT_APP_SARVAM_API_KEY) return process.env.REACT_APP_SARVAM_API_KEY;
-    if (process.env.VITE_SARVAM_API_KEY) return process.env.VITE_SARVAM_API_KEY;
-  }
-  // Try Vite import.meta
-  // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    // @ts-ignore
-    if (import.meta.env.SARVAM_API_KEY) return import.meta.env.SARVAM_API_KEY;
-    // @ts-ignore
-    if (import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY) return import.meta.env.NEXT_PUBLIC_SARVAM_API_KEY;
-    // @ts-ignore
-    if (import.meta.env.VITE_SARVAM_API_KEY) return import.meta.env.VITE_SARVAM_API_KEY;
-  }
-  return '';
-};
+// services/sarvamService.ts
 
-const SARVAM_API_KEY = getSarvamKey();
-
-// Helper to split long text into chunks
+// Helper to split long text into chunks (Shared logic)
 const chunkText = (text: string, maxLength: number = 300): string[] => {
   const chunks: string[] = [];
   
@@ -41,13 +18,11 @@ const chunkText = (text: string, maxLength: number = 300): string[] => {
   let currentChunk = '';
 
   for (const part of sentences) {
-    // If a single sentence is huge (rare but possible), force split it
     if (part.length > maxLength) {
         if (currentChunk) {
             chunks.push(currentChunk.trim());
             currentChunk = '';
         }
-        // Split by words
         const words = part.split(' ');
         let subChunk = '';
         for(const w of words) {
@@ -74,15 +49,13 @@ const chunkText = (text: string, maxLength: number = 300): string[] => {
   return chunks.filter(c => c.length > 0);
 };
 
-// --- ROBUST WAV MERGING LOGIC ---
+// --- ROBUST WAV MERGING LOGIC (Client Side) ---
 
-// Helper to find the start of the 'data' chunk in a WAV file
 const findDataChunkOffset = (view: DataView): { offset: number, size: number } | null => {
   try {
-    let offset = 12; // Skip RIFF(4) + Size(4) + WAVE(4)
+    let offset = 12; 
     while (offset < view.byteLength) {
       if (offset + 8 > view.byteLength) break;
-      
       const chunkId = String.fromCharCode(
         view.getUint8(offset),
         view.getUint8(offset + 1),
@@ -90,7 +63,6 @@ const findDataChunkOffset = (view: DataView): { offset: number, size: number } |
         view.getUint8(offset + 3)
       );
       const chunkSize = view.getUint32(offset + 4, true);
-
       if (chunkId === 'data') {
         return { offset: offset + 8, size: chunkSize };
       }
@@ -124,13 +96,10 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
       const dataInfo = findDataChunkOffset(view);
       
       if (dataInfo) {
-        // Robust way: Found the actual data chunk
         const pcmData = buffer.slice(dataInfo.offset, dataInfo.offset + dataInfo.size);
         pcmParts.push(pcmData);
         totalLength += pcmData.length;
       } else {
-        // Fallback way: Assume standard 44 byte header if parsing fails
-        console.warn("Could not find data chunk, using fallback strip (44 bytes).");
         if (buffer.length > 44) {
             const pcmData = buffer.slice(44);
             pcmParts.push(pcmData);
@@ -141,7 +110,6 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
 
     if (totalLength === 0) return `data:audio/wav;base64,${base64List[0]}`;
 
-    // Create a fresh standard 44-byte WAV header
     const header = new ArrayBuffer(44);
     const view = new DataView(header);
     
@@ -159,7 +127,6 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
     writeString(view, 36, 'data');
     view.setUint32(40, totalLength, true);
 
-    // Concatenate
     const finalBuffer = new Uint8Array(44 + totalLength);
     finalBuffer.set(new Uint8Array(header), 0);
     
@@ -169,7 +136,6 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
       offset += part.length;
     }
 
-    // Convert to base64
     let binary = '';
     const len = finalBuffer.byteLength;
     const CHUNK_SIZE = 8192;
@@ -181,7 +147,6 @@ const mergeWavBase64 = async (base64List: string[]): Promise<string> => {
 
   } catch (e) {
     console.error("Error merging WAVs", e);
-    // Ultimate fallback: Just play the first chunk
     return `data:audio/wav;base64,${base64List[0]}`; 
   }
 };
@@ -192,56 +157,46 @@ const writeString = (view: DataView, offset: number, string: string) => {
   }
 };
 
-export const speechToText = async (audioBlob: Blob): Promise<string> => {
-  if (!SARVAM_API_KEY) {
-    throw new Error("API Key Missing: SARVAM_API_KEY is not defined in environment variables.");
-  }
+// --- API CALLS (Proxied via Next.js API Routes) ---
 
+export const speechToText = async (audioBlob: Blob): Promise<string> => {
   const formData = new FormData();
   formData.append('file', audioBlob, 'audio.wav');
   formData.append('model', 'saaras:v1'); 
 
   try {
-    const response = await fetch('https://api.sarvam.ai/speech-to-text-translate', {
+    // Call local API route which holds the secret key
+    const response = await fetch('/api/sarvam/asr', {
       method: 'POST',
-      headers: {
-        'api-subscription-key': SARVAM_API_KEY,
-      },
       body: formData,
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Sarvam ASR Failed (${response.status}): ${errText}`);
+      const errData = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(`ASR Error: ${errData.error || response.statusText}`);
     }
 
     const data = await response.json();
     return data.transcript || "";
   } catch (error) {
-    console.error("ASR Error:", error);
+    console.error("ASR Service Error:", error);
     throw error;
   }
 };
 
 export const textToSpeech = async (text: string): Promise<string> => {
-  if (!SARVAM_API_KEY) {
-     throw new Error("API Key Missing: SARVAM_API_KEY is not defined in environment variables.");
-  }
-
   try {
     const chunks = chunkText(text);
-    console.log(`TTS: Processing ${chunks.length} chunks.`);
+    console.log(`TTS: Processing ${chunks.length} chunks via proxy.`);
     
     const audioBase64List: string[] = [];
 
-    // Limit concurrency to prevent rate limits or mixups
+    // Process chunks sequentially
     for (const chunk of chunks) {
-      const response = await fetch('https://api.sarvam.ai/text-to-speech', {
+      // Call local API route which holds the secret key
+      const response = await fetch('/api/sarvam/tts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api-subscription-key': SARVAM_API_KEY,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           inputs: [chunk],
           target_language_code: 'ta-IN',
@@ -256,8 +211,7 @@ export const textToSpeech = async (text: string): Promise<string> => {
       });
 
       if (!response.ok) {
-        const errText = await response.text();
-        console.error(`TTS Chunk Failed (${response.status}):`, errText);
+        console.warn("TTS Chunk Proxy Failed:", await response.text());
         continue;
       }
 
@@ -268,13 +222,13 @@ export const textToSpeech = async (text: string): Promise<string> => {
     }
 
     if (audioBase64List.length === 0) {
-      throw new Error("API_ERROR: Sarvam generated 0 audio chunks.");
+      throw new Error("No audio chunks generated.");
     }
 
     return await mergeWavBase64(audioBase64List);
 
   } catch (error) {
-    console.error("TTS Error:", error);
+    console.error("TTS Service Error:", error);
     throw error;
   }
 };
