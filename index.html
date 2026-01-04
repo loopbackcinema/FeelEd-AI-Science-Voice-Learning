@@ -3,26 +3,37 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FeelEd AI – Science Voice Learning</title>
+    <title>FeelEd AI – Magic Science Stories</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;500;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;500;700;800&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Nunito', sans-serif;
+        background-color: #FDFDFF;
       }
       .font-tamil {
         font-family: 'Mukta Malar', sans-serif;
       }
-      /* Custom scrollbar for better mobile feel */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      /* Custom scrollbar */
       ::-webkit-scrollbar {
-        width: 6px;
+        width: 10px;
       }
       ::-webkit-scrollbar-track {
-        background: #f1f1f1; 
+        background: #FDFDFF; 
       }
       ::-webkit-scrollbar-thumb {
-        background: #fbbf24; 
+        background: #E0E7FF; 
         border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #C7D2FE;
       }
     </style>
   <script type="importmap">
@@ -40,20 +51,15 @@
 }
 </script>
 <script>
-  // Polyfill process.env to prevent "process is not defined" crash in browser
   window.process = {
     env: {
       NODE_ENV: 'production',
-      // Keys will be injected here if supported by your build, 
-      // otherwise they safely default to undefined instead of crashing.
-      // Note: Vercel Env Vars must be prefixed with NEXT_PUBLIC_ to be visible here automatically in some setups.
     }
   };
 </script>
 </head>
-  <body class="bg-slate-50 text-slate-900 antialiased">
+  <body class="antialiased overflow-x-hidden">
     <div id="root"></div>
-    <!-- Load the main application entry point -->
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
