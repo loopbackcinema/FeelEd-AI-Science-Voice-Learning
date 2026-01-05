@@ -5,25 +5,25 @@ import { generateScienceContent, generateSimplerExplanation } from './services/g
 import { speechToText, textToSpeech } from './services/sarvamService';
 import { logSession } from './services/supabaseService';
 
-// Icons
+// Icons (SVG)
 const MicIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/center" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-12 h-12">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 1.5a3 3 0 00-3 3v4.5a3 3 0 006 0v-4.5a3 3 0 00-3-3z" />
   </svg>
 );
 const StopIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-12 h-12 text-white">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12">
     <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z" />
   </svg>
 );
-const SendIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+const PlayIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
   </svg>
 );
-const MagicWand = () => <span className="text-4xl animate-bounce">🪄</span>;
 
 const App: React.FC = () => {
+  // State
   const [step, setStep] = useState<AppStep>('CLASS_SELECT');
   const [session, setSession] = useState<LearningSession>({
     classLevel: null,
@@ -38,31 +38,18 @@ const App: React.FC = () => {
   
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('சிந்திக்கிறது...');
+  const [loadingMessage, setLoadingMessage] = useState('Thinking... (சிந்திக்கிறது...)');
   const [isPlaying, setIsPlaying] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
+  const [showResult, setShowResult] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
-  const [textInput, setTextInput] = useState('');
 
+  // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
-  const resetApp = () => {
-     setStep('CLASS_SELECT');
-     setSession({
-        classLevel: null,
-        topic: null,
-        userQuery: '',
-        explanationText: '',
-        explanationAudioUrl: null,
-        quiz: [],
-        score: 0,
-        actionTaken: null,
-     });
-     setTextInput('');
-     setAudioError(null);
-  };
+  // --- Handlers ---
 
   const handleClassSelect = (cls: ClassLevel) => {
     setSession(prev => ({ ...prev, classLevel: cls }));
@@ -74,57 +61,23 @@ const App: React.FC = () => {
     setStep('INPUT');
   };
 
-  const getSupportedMimeType = () => {
-    const types = ['audio/webm', 'audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/wav'];
-    for (const type of types) {
-      if (MediaRecorder.isTypeSupported(type)) return type;
-    }
-    return '';
-  };
-
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = getSupportedMimeType();
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
-      
+      const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+        audioChunksRef.current.push(event.data);
       };
 
-      mediaRecorder.onstop = async () => {
-        if (audioChunksRef.current.length === 0) {
-            alert("No audio recorded / ஒலி பதிவு செய்யப்படவில்லை");
-            return;
-        }
-        setIsProcessing(true);
-        setLoadingMessage('கேட்கிறது (Listening)...');
-        setStep('PROCESSING');
-        
-        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
-        
-        try {
-          const transcript = await speechToText(audioBlob);
-          if (!transcript.trim()) throw new Error("No speech detected");
-          setSession(prev => ({ ...prev, userQuery: transcript }));
-          await processContentGeneration(transcript);
-        } catch (error: any) {
-          console.error(error);
-          alert("மன்னிக்கவும், மீண்டும் பேசவும். (Magic Engine missed that).");
-          setStep('INPUT');
-        } finally {
-          setIsProcessing(false);
-        }
-      };
-
-      mediaRecorder.start(100);
+      mediaRecorder.onstop = handleRecordingStop;
+      mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      console.error("Mic Access Error:", err);
-      alert("Microphone access is needed. / மைக்ரோஃபோன் அனுமதி தேவை.");
+      console.error("Error accessing mic:", err);
+      alert("Microphone access is needed for this feature. / மைக்ரோஃபோன் அனுமதி தேவை.");
     }
   };
 
@@ -132,59 +85,105 @@ const App: React.FC = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
   };
 
-  const handleTextSubmit = () => {
-    if (!textInput.trim()) return;
-    setSession(prev => ({...prev, userQuery: textInput}));
+  const handleRecordingStop = async () => {
+    setIsProcessing(true);
+    setLoadingMessage('Listening... (கேட்கிறது...)');
     setStep('PROCESSING');
-    processContentGeneration(textInput);
+    setAudioError(null);
+    
+    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+    
+    try {
+      // 1. ASR
+      const transcript = await speechToText(audioBlob);
+      if (!transcript.trim()) throw new Error("No speech detected");
+      
+      setSession(prev => ({ ...prev, userQuery: transcript }));
+
+      // 2. Generate Content
+      await processContentGeneration(transcript);
+
+    } catch (error: any) {
+      console.error(error);
+      const msg = error.message || "Unknown Error";
+      alert("Error processing: " + msg);
+      setStep('INPUT');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const processContentGeneration = async (query: string, isSimplification: boolean = false) => {
     try {
-      setLoadingMessage('கதை எழுதுகிறது (Creating Story)...');
+      setLoadingMessage('Writing Story... (கதை எழுதுகிறது...)');
       let storyText = "";
       
       if (isSimplification && session.explanationText) {
         storyText = await generateSimplerExplanation(session.explanationText);
         setSession(prev => ({ ...prev, explanationText: storyText }));
       } else {
-        const content = await generateScienceContent(session.classLevel!, session.topic!.en, query);
+        const content = await generateScienceContent(
+          session.classLevel!, 
+          session.topic!.en, 
+          query
+        );
         storyText = content.story;
         setSession(prev => ({ ...prev, explanationText: content.story, quiz: content.quiz }));
       }
 
-      setLoadingMessage('ஒலி உருவாக்கப்படுகிறது (Generating Voice)...');
+      // 3. TTS
+      setLoadingMessage('Generating Audio... (ஒலி உருவாக்கப்படுகிறது...)');
       try {
         const audioUrl = await textToSpeech(storyText);
         setSession(prev => ({ ...prev, explanationAudioUrl: audioUrl }));
       } catch (audioError: any) {
+         console.error("Audio Generation Failed:", audioError);
          setAudioError(audioError.message || "Unknown Audio Error");
+         setSession(prev => ({ ...prev, explanationAudioUrl: null }));
       }
 
       setStep('PLAYBACK');
+
+      // Auto play attempt
+      setTimeout(() => {
+        if (audioPlayerRef.current) {
+          const playPromise = audioPlayerRef.current.play();
+          if (playPromise !== undefined) {
+             playPromise.then(() => setIsPlaying(true))
+             .catch(error => {
+                console.log("Autoplay blocked, showing controls", error);
+                setIsPlaying(false);
+             });
+          }
+        }
+      }, 500);
+
     } catch (e) {
-      setStep('INPUT');
+      console.error("Content Generation Failed", e);
+      setStep('INPUT'); // Reset on failure
     }
   };
 
   const handleAction = async (action: 'understood' | 'explain_again' | 'replay') => {
     setSession(prev => ({ ...prev, actionTaken: action }));
+    
     if (action === 'replay') {
       if (audioPlayerRef.current) {
         audioPlayerRef.current.currentTime = 0;
         audioPlayerRef.current.play();
+        setIsPlaying(true);
       }
     } else if (action === 'explain_again') {
       setIsProcessing(true);
-      setLoadingMessage('மீண்டும் சிந்திக்கிறது...');
-      setStep('PROCESSING');
+      setLoadingMessage('Re-thinking... (மீண்டும் சிந்திக்கிறது...)');
+      setStep('PROCESSING'); // Show loading
       await processContentGeneration(session.userQuery, true);
       setIsProcessing(false);
     } else {
+      // Understood -> Go to Quiz
       setStep('QUIZ');
       setQuizAnswers(new Array(session.quiz.length).fill(-1));
     }
@@ -203,8 +202,10 @@ const App: React.FC = () => {
     });
 
     setSession(prev => ({ ...prev, score: correctCount }));
+    setShowResult(true);
     setStep('RESULT');
 
+    // Log to Supabase
     await logSession({
       class_level: session.classLevel!,
       topic: session.topic!.en,
@@ -213,221 +214,218 @@ const App: React.FC = () => {
       quiz_score: correctCount
     });
 
-    try {
-      const fbText = correctCount > 0 ? "வாழ்த்துகள்!" : "பரவாயில்லை!";
-      const feedbackAudio = await textToSpeech(fbText);
-      const audio = new Audio(feedbackAudio);
-      audio.play();
-    } catch(e) {}
+    // If 0 score, gentle explanation (Voice logic could be added here, currently text)
+    if (correctCount === 0) {
+        try {
+          const comfortAudio = await textToSpeech("பரவாயில்லை! நாம் மீண்டும் முயற்சிப்போம். (It's okay! We will try again.)");
+          const audio = new Audio(comfortAudio);
+          audio.play();
+        } catch(e) { console.warn("Comfort audio failed", e)}
+    } else {
+        try {
+          const congratsAudio = await textToSpeech("வாழ்த்துகள்! சிறப்பாக செய்தீர்கள். (Congratulations! You did well.)");
+          const audio = new Audio(congratsAudio);
+          audio.play();
+        } catch(e) { console.warn("Congrats audio failed", e)}
+    }
   };
 
-  const HeaderNav = () => (
-    <div className="w-full flex items-center justify-between p-4 bg-white/90 backdrop-blur-md sticky top-0 z-30 border-b border-indigo-100">
-      <div className="flex items-center gap-2 cursor-pointer" onClick={resetApp}>
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-2 rounded-xl shadow-lg">
-          <span className="text-white text-xl">🪄</span>
-        </div>
-        <h1 className="text-2xl font-black text-indigo-900 tracking-tight">FeelEd AI</h1>
+  const resetApp = () => {
+     setStep('CLASS_SELECT');
+     setSession({
+        classLevel: null,
+        topic: null,
+        userQuery: '',
+        explanationText: '',
+        explanationAudioUrl: null,
+        quiz: [],
+        score: 0,
+        actionTaken: null,
+     });
+     setShowResult(false);
+     setAudioError(null);
+  }
+
+  // --- Renders ---
+
+  // Header
+  const Header = () => (
+    <div className="w-full p-4 bg-yellow-400 text-slate-900 shadow-md mb-6 sticky top-0 z-10">
+      <h1 className="text-xl font-bold font-tamil">FeelEd AI</h1>
+      <p className="text-sm font-tamil opacity-90">Science Voice Learning / அறிவியல் குரல் வழி கற்றல்</p>
+    </div>
+  );
+
+  // Debug Footer
+  const DebugFooter = () => (
+      <div className="fixed bottom-0 left-0 w-full p-1 bg-slate-900 text-slate-500 text-[10px] flex justify-center gap-4">
+        <span>Client: v1.2 (60s)</span>
+        <span>
+          Gemini: { (process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY) ? '✅' : '❌' }
+        </span>
+        <span>
+          Sarvam: { (process.env.SARVAM_API_KEY || process.env.NEXT_PUBLIC_SARVAM_API_KEY) ? '✅' : '❌' }
+        </span>
       </div>
-      {step !== 'CLASS_SELECT' && (
-        <button 
-          onClick={resetApp}
-          className="bg-indigo-50 text-indigo-700 px-5 py-2 rounded-full text-sm font-black font-tamil border-2 border-indigo-100 hover:bg-indigo-100 transition active:scale-95 shadow-sm"
+  )
+
+  // Step 1: Class Selection
+  const renderClassSelection = () => (
+    <div className="grid grid-cols-1 gap-4 p-4 animate-fade-in">
+      <h2 className="text-lg font-semibold text-center mb-4 font-tamil">வகுப்பைத் தேர்ந்தெடுக்கவும் <br/> Select Class</h2>
+      {['6', '7', '8'].map((cls) => (
+        <button
+          key={cls}
+          onClick={() => handleClassSelect(cls as ClassLevel)}
+          className="bg-white border-2 border-yellow-400 rounded-xl p-6 text-2xl font-bold shadow-sm hover:bg-yellow-50 transition active:scale-95 flex justify-between items-center"
         >
-          Back to Story Engine (முகப்பு)
+          <span>Class {cls}</span>
+          <span className="font-tamil">{cls} ஆம் வகுப்பு</span>
         </button>
+      ))}
+    </div>
+  );
+
+  // Step 2: Topic Selection
+  const renderTopicSelection = () => (
+    <div className="flex flex-col gap-4 p-4 animate-fade-in">
+      <h2 className="text-lg font-semibold text-center mb-4 font-tamil">தலைப்பைத் தேர்ந்தெடுக்கவும் <br/> Select Topic</h2>
+      {CURRICULUM[session.classLevel!].map((t) => (
+        <button
+          key={t.id}
+          onClick={() => handleTopicSelect(t)}
+          className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:bg-yellow-50 text-left transition active:scale-95"
+        >
+          <div className="font-bold text-lg text-yellow-700">{t.en}</div>
+          <div className="font-tamil text-slate-600 text-lg mt-1">{t.ta}</div>
+        </button>
+      ))}
+       <button onClick={() => setStep('CLASS_SELECT')} className="mt-4 text-slate-400 underline text-sm">Back / பின்</button>
+    </div>
+  );
+
+  // Step 3 & 4: Input & Processing
+  const renderInput = () => (
+    <div className="flex flex-col items-center justify-center h-full p-6 animate-fade-in">
+      <h2 className="text-xl font-semibold text-center mb-8 font-tamil">
+        கேள்வி கேளுங்கள் <br/> <span className="text-base font-normal">Ask a question in Tamil</span>
+      </h2>
+
+      <div className={`relative rounded-full p-2 transition-all duration-300 ${isRecording ? 'bg-red-100 scale-110' : 'bg-yellow-100'}`}>
+        <button
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={isProcessing}
+          className={`w-32 h-32 rounded-full flex items-center justify-center shadow-lg transition-all ${
+            isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-yellow-400 text-white hover:bg-yellow-500'
+          }`}
+        >
+          {isRecording ? <StopIcon /> : <MicIcon />}
+        </button>
+      </div>
+      
+      <p className="mt-8 text-slate-500 text-center font-tamil">
+        {isRecording ? "Listening... (பேசவும்)" : "Tap to Speak (பேசத் தட்டவும்)"}
+      </p>
+
+      {/* Fallback Text Input */}
+      {!isRecording && (
+        <div className="mt-8 w-full max-w-sm">
+            <input 
+                type="text" 
+                placeholder="Or type here / அல்லது தட்டச்சு செய்க" 
+                className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:border-yellow-500"
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                        // Capture value immediately to avoid "property of null" errors in async usage
+                        const val = e.currentTarget.value;
+                        setSession(prev => ({...prev, userQuery: val}));
+                        processContentGeneration(val);
+                        setStep('PROCESSING');
+                    }
+                }}
+            />
+        </div>
       )}
     </div>
   );
 
-  const renderClassSelection = () => (
-    <div className="flex flex-col items-center justify-center min-h-[85vh] px-4 animate-fade-in text-center relative overflow-hidden">
-      <div className="mb-10 scale-125 transition-transform duration-700">
-         <h1 className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 mb-2 drop-shadow-2xl">FeelEd AI</h1>
-         <h2 className="text-4xl font-black text-indigo-900 tracking-tighter mt-4">Magic Story Engine</h2>
-      </div>
-
-      <div className="bg-white/40 backdrop-blur-md p-8 rounded-[3rem] border-4 border-white shadow-2xl mb-12 w-full max-w-xl transform hover:rotate-1 transition-all">
-        <p className="font-tamil text-3xl text-indigo-900 font-black mb-4 leading-tight">அறிவியல் குரல் வழி கதைகள் கேட்கலாம் வாங்க!</p>
-        <p className="text-indigo-600 font-black italic text-xl tracking-wide opacity-80">Hard topics turn into magic stories</p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 w-full max-w-sm">
-        {['6', '7', '8'].map((cls) => (
-          <button
-            key={cls}
-            onClick={() => handleClassSelect(cls as ClassLevel)}
-            className="group relative bg-white border-4 border-indigo-50 rounded-[2.5rem] p-8 text-4xl font-black shadow-2xl hover:border-indigo-400 hover:bg-indigo-50 transition-all transform hover:scale-105 active:scale-95 flex justify-between items-center overflow-hidden"
-          >
-            <span className="relative z-10 text-indigo-900">Class {cls}</span>
-            <span className="font-tamil relative z-10 text-indigo-600">{cls} ஆம் வகுப்பு</span>
-            <div className="absolute inset-0 bg-indigo-100 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-16 text-indigo-300 font-black text-center">
-         <p className="text-sm tracking-[0.2em] mb-1">AUDIO POWERED BY SARVAM</p>
-         <p className="text-[10px] tracking-widest opacity-60">ALL RIGHTS RESERVED FEELED AI 2026</p>
-      </div>
-    </div>
-  );
-
-  const renderTopicSelection = () => (
-    <div className="p-4 animate-fade-in max-w-lg mx-auto py-10">
-      <div className="text-center mb-10">
-        <h2 className="text-4xl font-black text-indigo-900 font-tamil mb-2">தலைப்பைத் தேர்ந்தெடுக்கவும்</h2>
-        <p className="text-indigo-400 font-bold uppercase tracking-widest text-sm">Pick your adventure</p>
-      </div>
-      <div className="space-y-4">
-        {CURRICULUM[session.classLevel!].map((t) => (
-          <button
-            key={t.id}
-            onClick={() => handleTopicSelect(t)}
-            className="w-full bg-white border-b-8 border-indigo-100 rounded-[2.5rem] p-8 shadow-xl hover:shadow-2xl hover:border-indigo-300 text-left transition transform hover:-translate-y-1 active:scale-95 flex items-center gap-6"
-          >
-            <div className="text-5xl bg-indigo-50 p-4 rounded-3xl shadow-inner">📘</div>
-            <div>
-               <div className="font-black text-2xl text-indigo-900 leading-tight">{t.en}</div>
-               <div className="font-tamil text-indigo-500 text-2xl font-bold mt-1">{t.ta}</div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderInput = () => (
-    <div className="flex flex-col items-center justify-center min-h-[75vh] p-6 animate-fade-in">
-      <div className="text-center mb-12">
-        <h2 className="text-4xl font-black text-indigo-900 font-tamil mb-2">கேள்வி கேளுங்கள்</h2>
-        <p className="text-indigo-400 font-bold tracking-widest uppercase">The magic engine is listening</p>
-      </div>
-
-      <button
-        onClick={isRecording ? stopRecording : startRecording}
-        disabled={isProcessing}
-        className={`w-48 h-48 rounded-full flex flex-col items-center justify-center shadow-[0_20px_50px_rgba(79,70,229,0.3)] transition-all border-[10px] relative group ${
-          isRecording 
-          ? 'bg-red-500 border-red-200 text-white animate-pulse' 
-          : 'bg-gradient-to-br from-indigo-600 to-purple-600 border-white text-white hover:scale-105 active:scale-90'
-        }`}
-      >
-        {isRecording ? <StopIcon /> : <MicIcon />}
-        <span className="mt-2 text-xs font-black uppercase tracking-widest">{isRecording ? "Stop" : "Speak"}</span>
-        {!isRecording && <div className="absolute -inset-4 border-2 border-indigo-300 rounded-full animate-ping opacity-20"/>}
-      </button>
-      
-      <p className="mt-10 text-indigo-900 text-center font-tamil font-black text-3xl">
-        {isRecording ? "நாங்கள் கேட்கிறோம்..." : "பேச தட்டவும்"}
-      </p>
-
-      <div className="mt-20 w-full max-w-lg">
-          <div className="flex gap-2 bg-white p-3 rounded-[2.5rem] shadow-2xl border-4 border-indigo-50">
-            <input 
-                type="text" 
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                placeholder="இங்கே தட்டச்சு செய்யவும்..." 
-                className="flex-1 p-5 rounded-3xl bg-transparent focus:outline-none font-tamil text-xl font-bold text-indigo-900"
-                onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
-            />
-            <button 
-              onClick={handleTextSubmit}
-              className="bg-indigo-600 text-white px-8 py-4 rounded-[2rem] shadow-lg active:scale-95 transition flex items-center gap-3 hover:bg-indigo-700"
-            >
-              <span className="font-tamil font-black text-lg">அனுப்பு</span>
-              <SendIcon />
-            </button>
-          </div>
-          <p className="text-center mt-5 text-xs text-indigo-300 font-black uppercase tracking-widest">Type your question and press send</p>
-      </div>
-    </div>
-  );
-
   const renderProcessing = () => (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] p-12 text-center animate-fade-in">
-        <div className="relative mb-16">
-          <div className="w-40 h-40 border-[16px] border-indigo-50 border-t-indigo-600 rounded-full animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <MagicWand />
-          </div>
-        </div>
-        <p className="font-tamil text-4xl font-black text-indigo-900 mb-6">{loadingMessage}</p>
-        <p className="text-indigo-400 font-black uppercase tracking-[0.3em] animate-pulse">Turning curiosity into magic...</p>
+    <div className="flex flex-col items-center justify-center p-12 text-center animate-fade-in">
+        <div className="w-16 h-16 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mb-6"></div>
+        <p className="font-tamil text-xl text-slate-700">{loadingMessage}</p>
     </div>
-  );
+  )
 
+  // Step 5: Playback & Feedback
   const renderPlayback = () => (
-    <div className="flex flex-col p-4 animate-fade-in max-w-2xl mx-auto pb-40">
-      <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden mb-10 border-b-[16px] border-indigo-100/50">
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-white text-center">
-          <h3 className="text-xs font-black opacity-70 uppercase tracking-widest mb-2">Magic Story about:</h3>
-          <p className="font-tamil text-3xl font-black leading-tight drop-shadow-sm">{session.userQuery}</p>
-        </div>
-        <div className="p-10 bg-gradient-to-b from-white to-indigo-50/20">
-          <p className="font-tamil text-2xl leading-relaxed text-indigo-900 font-bold whitespace-pre-wrap">{session.explanationText}</p>
-        </div>
+    <div className="flex flex-col h-full p-4 animate-fade-in max-w-lg mx-auto">
+      <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border-l-4 border-yellow-400">
+        <h3 className="text-sm font-bold text-yellow-600 mb-2 uppercase">You asked:</h3>
+        <p className="font-tamil text-lg mb-4">{session.userQuery}</p>
+        <div className="h-px bg-slate-100 w-full mb-4"></div>
+        
+        <h3 className="text-sm font-bold text-green-600 mb-2 uppercase">Explanation:</h3>
+        <p className="font-tamil text-lg leading-relaxed">{session.explanationText}</p>
       </div>
 
-      <div className="w-full mb-12 sticky bottom-32 z-20">
+      <div className="w-full mb-6">
         {session.explanationAudioUrl ? (
-          <div className="bg-white/95 backdrop-blur-sm p-6 rounded-[2.5rem] shadow-[0_15px_40px_rgba(0,0,0,0.1)] border-4 border-indigo-50 flex items-center">
-            <audio 
-                ref={audioPlayerRef} 
-                src={session.explanationAudioUrl} 
-                controls 
-                autoPlay
-                className="w-full h-12"
-                onEnded={() => setIsPlaying(false)}
-                onPlay={() => setIsPlaying(true)}
-            />
-          </div>
+          <audio 
+              ref={audioPlayerRef} 
+              src={session.explanationAudioUrl} 
+              controls 
+              className="w-full rounded-lg shadow-sm border border-slate-200"
+              onEnded={() => setIsPlaying(false)}
+              onPlay={() => setIsPlaying(true)}
+          />
         ) : (
-          <div className="p-6 bg-red-50 text-red-600 rounded-[2rem] text-center font-tamil border-4 border-red-100 font-bold text-xl shadow-lg">
-             ஒலி கிடைக்கவில்லை (Audio Error)
+          <div className="p-4 bg-red-50 text-red-600 rounded-lg text-center font-tamil border border-red-200 text-sm">
+             <div className="font-bold">Audio Unavailable / ஒலி இல்லை</div>
+             <div>{audioError || "Unknown Error"}</div>
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-5">
-        <button onClick={() => handleAction('understood')} className="w-full bg-green-500 text-white p-8 rounded-[2rem] text-3xl font-black font-tamil shadow-[0_15px_30px_rgba(34,197,94,0.3)] hover:bg-green-600 transition active:scale-95 flex items-center justify-center gap-5">
-          புரிந்தது, விளையாடுவோம்! <span>🎮</span>
+      <div className="mt-auto space-y-3">
+        <p className="text-center text-slate-500 font-tamil mb-2">Did you understand? / புரிந்ததா?</p>
+        
+        <button onClick={() => handleAction('understood')} className="w-full bg-green-500 text-white p-4 rounded-xl font-bold font-tamil shadow-md active:scale-95 transition">
+          ஆம், புரிந்தது (Yes, Understood)
         </button>
         
-        <div className="grid grid-cols-2 gap-5">
-            <button onClick={() => handleAction('explain_again')} className="bg-white text-indigo-600 p-8 rounded-[2rem] font-black font-tamil text-xl shadow-xl border-4 border-indigo-50 hover:bg-indigo-50 transition active:scale-95">
-             மீண்டும் விளக்கவும்
+        <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => handleAction('explain_again')} className="bg-orange-100 text-orange-700 p-4 rounded-xl font-bold font-tamil shadow-sm active:scale-95 transition">
+             விளக்கவும் (Explain Again)
             </button>
-            <button onClick={() => handleAction('replay')} className="bg-indigo-100 text-indigo-700 p-8 rounded-[2rem] font-black font-tamil text-xl shadow-xl border-4 border-indigo-200 hover:bg-indigo-200 transition active:scale-95 flex items-center justify-center gap-3">
-             மீண்டும் கேட்க {isPlaying && <span className="w-4 h-4 bg-indigo-500 rounded-full animate-ping"/>}
+            <button 
+              onClick={() => handleAction('replay')} 
+              disabled={!session.explanationAudioUrl}
+              className="bg-blue-100 text-blue-700 p-4 rounded-xl font-bold font-tamil shadow-sm active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+             <span>மீண்டும் கேட்க</span> {isPlaying && <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping"/>}
             </button>
         </div>
       </div>
     </div>
   );
 
+  // Step 6: Quiz
   const renderQuiz = () => (
-    <div className="p-4 max-w-2xl mx-auto animate-fade-in py-10 pb-40">
-        <div className="text-center mb-12">
-           <h2 className="text-5xl font-black font-tamil text-indigo-900 mb-3">மினி வினாடி வினா</h2>
-           <p className="text-indigo-400 font-black tracking-widest uppercase text-sm">Test your magic memory!</p>
-        </div>
-
-        <div className="space-y-10">
+    <div className="p-4 max-w-lg mx-auto animate-fade-in">
+        <h2 className="text-xl font-bold font-tamil text-center mb-6">குறு வினாடி வினா (Quiz)</h2>
+        <div className="space-y-6">
             {session.quiz.map((q, qIdx) => (
-                <div key={q.id} className="bg-white p-10 rounded-[3rem] shadow-2xl border-4 border-indigo-50 relative overflow-hidden group hover:border-indigo-200 transition-all">
-                    <div className="absolute top-0 left-0 w-3 h-full bg-indigo-600"/>
-                    <p className="font-tamil font-black text-2xl mb-8 text-indigo-900 leading-tight">{qIdx + 1}. {q.question}</p>
-                    <div className="space-y-4">
+                <div key={q.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                    <p className="font-tamil font-semibold text-lg mb-3">{qIdx + 1}. {q.question}</p>
+                    <div className="space-y-2">
                         {q.options.map((opt, oIdx) => (
                             <button
                                 key={oIdx}
                                 onClick={() => handleQuizAnswer(qIdx, oIdx)}
-                                className={`w-full text-left p-6 rounded-3xl font-tamil font-black text-2xl transition-all border-4 ${
+                                className={`w-full text-left p-3 rounded-lg font-tamil transition ${
                                     quizAnswers[qIdx] === oIdx 
-                                    ? 'bg-indigo-600 border-indigo-300 text-white shadow-[0_10px_20px_rgba(79,70,229,0.3)] scale-[1.03]' 
-                                    : 'bg-indigo-50 border-transparent text-indigo-900 hover:bg-indigo-100'
+                                    ? 'bg-yellow-200 border-yellow-400' 
+                                    : 'bg-slate-50 hover:bg-slate-100'
                                 }`}
                             >
                                 {opt}
@@ -437,35 +435,32 @@ const App: React.FC = () => {
                 </div>
             ))}
         </div>
-
         <button 
             disabled={quizAnswers.includes(-1)}
             onClick={submitQuiz}
-            className="w-full mt-16 bg-indigo-600 disabled:bg-indigo-200 text-white p-10 rounded-[3rem] text-3xl font-black font-tamil shadow-[0_20px_40px_rgba(79,70,229,0.3)] transform active:scale-95 transition hover:bg-indigo-700"
+            className="w-full mt-8 bg-yellow-500 disabled:bg-slate-300 text-white p-4 rounded-xl font-bold shadow-md"
         >
-            முடிவுகளை காட்டு (Check Results)
+            முடிவுகளை காட்டு (Show Results)
         </button>
     </div>
   );
 
+  // Step 7: Result
   const renderResult = () => (
-    <div className="flex flex-col items-center justify-center min-h-[85vh] p-6 text-center animate-fade-in relative">
-        <div className="text-[12rem] mb-10 transform hover:rotate-12 transition-transform drop-shadow-[0_20px_50px_rgba(0,0,0,0.2)] animate-bounce">
-            {session.score === session.quiz.length ? '🏆' : session.score > 0 ? '🎖️' : '🔭'}
+    <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-fade-in">
+        <div className="text-6xl mb-4">
+            {session.score > 0 ? '🌟' : '🌱'}
         </div>
-        <h2 className="text-6xl font-black font-tamil mb-6 text-indigo-900">
-            {session.score === session.quiz.length ? 'அற்புதம்!' : 'நன்று!'}
+        <h2 className="text-2xl font-bold font-tamil mb-2">
+            {session.score > 0 ? 'வாழ்த்துகள்! (Congratulations)' : 'பரவாயில்லை! (Keep trying)'}
         </h2>
-        <div className="bg-white px-16 py-10 rounded-[4rem] shadow-2xl border-[12px] border-indigo-50 mb-16 relative">
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-indigo-600 text-white px-6 py-1 rounded-full font-black text-xs tracking-widest uppercase">Score</div>
-            <p className="text-9xl font-black text-indigo-600">
-                {session.score}<span className="text-4xl text-indigo-200"> / {session.quiz.length}</span>
-            </p>
-        </div>
+        <p className="text-xl text-slate-600 mb-8">
+            Score: {session.score} / {session.quiz.length}
+        </p>
 
         <button 
             onClick={resetApp}
-            className="bg-indigo-600 text-white px-16 py-8 rounded-full text-4xl font-black font-tamil shadow-2xl hover:bg-indigo-700 transition transform hover:scale-110 active:scale-95"
+            className="bg-yellow-400 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-yellow-500 transition"
         >
             முகப்பு பக்கம் (Home)
         </button>
@@ -473,17 +468,9 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFF] font-sans pb-10 overflow-x-hidden selection:bg-indigo-100">
-      {/* Dynamic Background elements */}
-      <div className="fixed inset-0 pointer-events-none opacity-20 overflow-hidden z-0">
-        <div className="absolute top-20 left-10 text-6xl animate-pulse">✨</div>
-        <div className="absolute bottom-60 right-20 text-5xl animate-bounce">🪄</div>
-        <div className="absolute top-1/2 right-10 text-7xl opacity-40">⭐</div>
-        <div className="absolute bottom-10 left-1/4 text-5xl animate-pulse delay-700">💫</div>
-      </div>
-
-      <HeaderNav />
-      <div className="max-w-4xl mx-auto relative z-10 px-4">
+    <div className="min-h-screen bg-slate-50 font-sans pb-10">
+      <Header />
+      <div className="max-w-2xl mx-auto">
         {step === 'CLASS_SELECT' && renderClassSelection()}
         {step === 'TOPIC_SELECT' && renderTopicSelection()}
         {step === 'INPUT' && renderInput()}
@@ -492,14 +479,7 @@ const App: React.FC = () => {
         {step === 'QUIZ' && renderQuiz()}
         {step === 'RESULT' && renderResult()}
       </div>
-      
-      {/* Fixed Branding Footer for non-home screens */}
-      {step !== 'CLASS_SELECT' && (
-        <div className="fixed bottom-0 left-0 w-full p-3 bg-white/50 backdrop-blur-sm text-[9px] flex justify-center gap-6 text-indigo-300 font-black z-50 uppercase tracking-[0.3em]">
-          <span>AUDIO BY SARVAM</span>
-          <span>FEELED AI 2026</span>
-        </div>
-      )}
+      <DebugFooter />
     </div>
   );
 };
