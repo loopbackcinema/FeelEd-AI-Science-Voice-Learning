@@ -1,18 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Strictly use Next.js standard environment variables
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Use injected environment variables
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Initialize client only if keys are present
-// This allows the app to run (without logging) even if Supabase isn't configured yet.
 const supabase = (SUPABASE_URL && SUPABASE_KEY) 
   ? createClient(SUPABASE_URL, SUPABASE_KEY) 
   : null;
-
-if (!supabase) {
-  console.warn("FeelEd Log: Supabase is not configured. (Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY)");
-}
 
 export const logSession = async (data: {
   class_level: string;
@@ -22,8 +16,7 @@ export const logSession = async (data: {
   quiz_score: number;
 }) => {
   if (!supabase) {
-    // Fail silently in UI, but log to console for dev
-    console.warn("Skipping Supabase Log: Credentials missing.");
+    console.warn("Supabase not configured");
     return;
   }
 
@@ -38,12 +31,8 @@ export const logSession = async (data: {
         },
       ]);
 
-    if (error) {
-      console.error('Supabase Insert Error:', error.message);
-    } else {
-      console.log("Session logged to Supabase.");
-    }
+    if (error) console.error('Logging Error:', error);
   } catch (err) {
-    console.error('Supabase Exception:', err);
+    console.error('Supabase catch:', err);
   }
 };
