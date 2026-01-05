@@ -1,8 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Use injected environment variables
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Use specific project URL and support multiple key variable names
+const SUPABASE_URL = 'https://ingkmgyoldwhxgzphfzi.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+if (!SUPABASE_KEY) {
+  console.warn("⚠️ Supabase Key is MISSING. Logging will not work. Check your .env file or environment variables.");
+} else {
+  console.log("✅ Supabase Key found. Initializing client...");
+}
 
 const supabase = (SUPABASE_URL && SUPABASE_KEY) 
   ? createClient(SUPABASE_URL, SUPABASE_KEY) 
@@ -16,7 +22,7 @@ export const logSession = async (data: {
   quiz_score: number;
 }) => {
   if (!supabase) {
-    console.warn("Supabase not configured");
+    console.warn("Supabase not configured (Missing Key)");
     return;
   }
 
@@ -31,8 +37,12 @@ export const logSession = async (data: {
         },
       ]);
 
-    if (error) console.error('Logging Error:', error);
+    if (error) {
+      console.error('❌ Supabase Logging Error:', error.message, error.details);
+    } else {
+      console.log('✅ Supabase Log Inserted Successfully:', data);
+    }
   } catch (err) {
-    console.error('Supabase catch:', err);
+    console.error('❌ Supabase Unexpected Error:', err);
   }
 };
