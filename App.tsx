@@ -255,7 +255,10 @@ const App: React.FC = () => {
 
   const renderTopicSelection = () => (
     <div className="p-4 animate-fade-in max-w-lg mx-auto py-10">
-      <h2 className="text-center text-4xl font-black text-indigo-900 font-tamil mb-10">தலைப்பைத் தேர்ந்தெடுக்கவும்</h2>
+      <div className="text-center mb-10">
+        <h2 className="text-4xl font-black text-indigo-900 mb-2">Select a Topic</h2>
+        <p className="text-2xl font-bold text-indigo-600 font-tamil">தலைப்பைத் தேர்ந்தெடுக்கவும்</p>
+      </div>
       <div className="space-y-4">
         {CURRICULUM[session.classLevel!].map((t) => (
           <button key={t.id} onClick={() => handleTopicSelect(t)} className="w-full bg-white border-b-8 border-indigo-100 rounded-[2.5rem] p-8 shadow-xl hover:shadow-2xl transition transform hover:-translate-y-1 active:scale-95 flex items-center gap-6">
@@ -273,19 +276,26 @@ const App: React.FC = () => {
   const renderInput = () => (
     <div className="flex flex-col items-center justify-center min-h-[75vh] p-6 animate-fade-in">
       <div className="text-center mb-12">
-        <h2 className="text-4xl font-black text-indigo-900 font-tamil mb-2">கேள்வி கேளுங்கள்</h2>
+        <h2 className="text-4xl font-black text-indigo-900 mb-2">Ask a Question</h2>
+        <h3 className="text-2xl font-bold text-indigo-600 font-tamil mb-2">கேள்வி கேளுங்கள்</h3>
         <p className="text-indigo-400 font-bold tracking-widest uppercase">The magic engine is listening</p>
       </div>
       <button onClick={isRecording ? stopRecording : startRecording} disabled={isProcessing} className={`w-48 h-48 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all border-[10px] relative ${isRecording ? 'bg-red-500 border-red-200 text-white animate-pulse' : 'bg-gradient-to-br from-indigo-600 to-purple-600 border-white text-white active:scale-90'}`}>
         {isRecording ? <StopIcon /> : <MicIcon />}
-        <span className="mt-2 text-xs font-black tracking-widest">{isRecording ? "Stop" : "Speak"}</span>
+        <span className="mt-2 text-xs font-black tracking-widest uppercase flex flex-col items-center">
+            <span>{isRecording ? "Stop" : "Speak"}</span>
+            <span className="font-tamil text-[10px] opacity-90">{isRecording ? "(நிறுத்து)" : "(பேசவும்)"}</span>
+        </span>
       </button>
       <p className="mt-10 text-indigo-900 text-center font-tamil font-black text-3xl">{isRecording ? "நாங்கள் கேட்கிறோம்..." : "பேச தட்டவும்"}</p>
       <div className="mt-20 w-full max-w-lg">
           <div className="flex gap-2 bg-white p-3 rounded-[2.5rem] shadow-2xl border-4 border-indigo-50">
             <input type="text" value={textInput} onChange={(e) => setTextInput(e.target.value)} placeholder="இங்கே தட்டச்சு செய்யவும்..." className="flex-1 p-5 rounded-3xl bg-transparent focus:outline-none font-tamil text-xl font-bold text-indigo-900" onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()} />
             <button onClick={handleTextSubmit} className="bg-indigo-600 text-white px-8 py-4 rounded-[2rem] shadow-lg active:scale-95 transition flex items-center gap-3">
-              <span className="font-tamil font-black text-lg">அனுப்பு</span>
+              <div className="flex flex-col items-start">
+                  <span className="font-black text-sm">Send</span>
+                  <span className="font-tamil font-bold text-xs opacity-90">அனுப்பு</span>
+              </div>
               <SendIcon />
             </button>
           </div>
@@ -320,10 +330,19 @@ const App: React.FC = () => {
         )}
       </div>
       <div className="grid grid-cols-1 gap-5">
-        <button onClick={() => handleAction('understood')} className="w-full bg-green-500 text-white p-8 rounded-[2rem] text-3xl font-black font-tamil shadow-xl hover:bg-green-600 active:scale-95 flex items-center justify-center gap-5">ஆம், புரிந்தது! 🎮</button>
+        <button onClick={() => handleAction('understood')} className="w-full bg-green-500 text-white p-6 rounded-[2rem] shadow-xl hover:bg-green-600 active:scale-95 flex flex-col items-center justify-center gap-2">
+            <span className="text-3xl font-black">Yes, Understood! 🎮</span>
+            <span className="text-xl font-bold font-tamil opacity-90">(ஆம், புரிந்தது!)</span>
+        </button>
         <div className="grid grid-cols-2 gap-5">
-            <button onClick={() => handleAction('explain_again')} className="bg-white text-indigo-600 p-8 rounded-[2rem] font-black font-tamil text-xl shadow-xl border-4 border-indigo-50 active:scale-95">மீண்டும் விளக்கவும்</button>
-            <button onClick={() => handleAction('replay')} className="bg-indigo-100 text-indigo-700 p-8 rounded-[2rem] font-black font-tamil text-xl shadow-xl border-4 border-indigo-200 active:scale-95 flex items-center justify-center gap-3">மீண்டும் கேட்க</button>
+            <button onClick={() => handleAction('explain_again')} className="bg-white text-indigo-600 p-6 rounded-[2rem] shadow-xl border-4 border-indigo-50 active:scale-95 flex flex-col items-center justify-center gap-1">
+                <span className="text-xl font-black leading-tight">Explain Again</span>
+                <span className="text-lg font-bold font-tamil opacity-80 leading-tight">(மீண்டும் விளக்கவும்)</span>
+            </button>
+            <button onClick={() => handleAction('replay')} className="bg-indigo-100 text-indigo-700 p-6 rounded-[2rem] shadow-xl border-4 border-indigo-200 active:scale-95 flex flex-col items-center justify-center gap-1">
+                <span className="text-xl font-black leading-tight">Listen Again</span>
+                <span className="text-lg font-bold font-tamil opacity-80 leading-tight">(மீண்டும் கேட்க)</span>
+            </button>
         </div>
       </div>
     </div>
@@ -331,7 +350,10 @@ const App: React.FC = () => {
 
   const renderQuiz = () => (
     <div className="p-4 max-w-2xl mx-auto animate-fade-in py-10 pb-8">
-        <h2 className="text-5xl font-black font-tamil text-center text-indigo-900 mb-10">மினி வினாடி வினா</h2>
+        <div className="text-center mb-10">
+          <h2 className="text-4xl font-black text-indigo-900 mb-2">Mini Quiz</h2>
+          <p className="text-2xl font-bold text-indigo-600 font-tamil">மினி வினாடி வினா</p>
+        </div>
         <div className="space-y-10">
             {session.quiz.map((q, qIdx) => (
                 <div key={q.id} className="bg-white p-10 rounded-[3rem] shadow-2xl border-4 border-indigo-50 relative overflow-hidden">
@@ -345,18 +367,25 @@ const App: React.FC = () => {
                 </div>
             ))}
         </div>
-        <button disabled={quizAnswers.includes(-1)} onClick={submitQuiz} className="w-full mt-16 bg-indigo-600 disabled:bg-indigo-200 text-white p-10 rounded-[3rem] text-3xl font-black font-tamil shadow-2xl active:scale-95 transition">முடிவுகளை காட்டு</button>
+        <button disabled={quizAnswers.includes(-1)} onClick={submitQuiz} className="w-full mt-16 bg-indigo-600 disabled:bg-indigo-200 text-white p-8 rounded-[3rem] shadow-2xl active:scale-95 transition flex flex-col items-center justify-center gap-2">
+            <span className="text-3xl font-black">Show Results</span>
+            <span className="text-2xl font-bold font-tamil opacity-90">(முடிவுகளை காட்டு)</span>
+        </button>
     </div>
   );
 
   const renderResult = () => (
     <div className="flex flex-col items-center justify-center min-h-[85vh] p-6 text-center animate-fade-in">
         <div className="text-[12rem] mb-10 drop-shadow-2xl animate-bounce">{session.score === session.quiz.length ? '🏆' : '✨'}</div>
-        <h2 className="text-6xl font-black font-tamil mb-6 text-indigo-900">{session.score === session.quiz.length ? 'அற்புதம்!' : 'நன்று!'}</h2>
+        <h2 className="text-5xl font-black text-indigo-900 mb-2">{session.score === session.quiz.length ? 'Amazing!' : 'Good Job!'}</h2>
+        <p className="text-3xl font-bold text-indigo-600 font-tamil mb-6">{session.score === session.quiz.length ? '(அற்புதம்!)' : '(நன்று!)'}</p>
         <div className="bg-white px-16 py-10 rounded-[4rem] shadow-2xl border-[12px] border-indigo-50 mb-16">
             <p className="text-9xl font-black text-indigo-600">{session.score}<span className="text-4xl text-indigo-200"> / {session.quiz.length}</span></p>
         </div>
-        <button onClick={resetApp} className="bg-indigo-600 text-white px-16 py-8 rounded-full text-4xl font-black font-tamil shadow-2xl hover:scale-110 transition active:scale-95">முகப்பு பக்கம்</button>
+        <button onClick={resetApp} className="bg-indigo-600 text-white px-12 py-6 rounded-full shadow-2xl hover:scale-110 transition active:scale-95 flex flex-col items-center">
+            <span className="text-2xl font-black">Back to Home</span>
+            <span className="text-lg font-bold font-tamil opacity-80">(முகப்பு பக்கம்)</span>
+        </button>
     </div>
   );
 
