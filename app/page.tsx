@@ -217,7 +217,7 @@ export default function Home() {
   };
 
   const HeaderNav = () => (
-    <div className="w-full flex items-center justify-between p-4 bg-white/95 backdrop-blur-md sticky top-0 z-30 border-b border-indigo-100 shadow-sm">
+    <div className="fixed top-0 left-0 right-0 w-full flex items-center justify-between p-4 bg-white/95 backdrop-blur-md z-50 border-b border-indigo-100 shadow-sm transition-all duration-300">
       <div className="flex items-center gap-2 cursor-pointer" onClick={resetApp}>
         <div className="bg-gradient-to-br from-indigo-600 to-purple-600 p-2 rounded-xl shadow-lg">
           <span className="text-white text-xl">🪄</span>
@@ -233,7 +233,7 @@ export default function Home() {
   );
 
   const renderClassSelection = () => (
-    <div className="flex flex-col items-center justify-center min-h-[85vh] px-4 animate-fade-in text-center relative">
+    <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 animate-fade-in text-center relative">
       <div className="mb-10 scale-125">
          <h1 className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 mb-2 drop-shadow-2xl">FeelEd AI</h1>
          <h2 className="text-4xl font-black text-indigo-900 tracking-tighter mt-4">Magic Story Engine</h2>
@@ -307,7 +307,7 @@ export default function Home() {
   );
 
   const renderPlayback = () => (
-    <div className="flex flex-col p-4 animate-fade-in max-w-2xl mx-auto pb-40">
+    <div className="flex flex-col p-4 animate-fade-in max-w-2xl mx-auto pb-8">
       <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden mb-10 border-b-[16px] border-indigo-100/50">
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-white text-center">
           <p className="font-tamil text-3xl font-black drop-shadow-sm">{session.userQuery}</p>
@@ -332,7 +332,7 @@ export default function Home() {
   );
 
   const renderQuiz = () => (
-    <div className="p-4 max-w-2xl mx-auto animate-fade-in py-10 pb-40">
+    <div className="p-4 max-w-2xl mx-auto animate-fade-in py-10 pb-8">
         <h2 className="text-5xl font-black font-tamil text-center text-indigo-900 mb-10">மினி வினாடி வினா</h2>
         <div className="space-y-10">
             {session.quiz.map((q, qIdx) => (
@@ -373,7 +373,7 @@ export default function Home() {
       </div>
 
       <HeaderNav />
-      <div className="max-w-4xl mx-auto relative z-10">
+      <div className="max-w-4xl mx-auto relative z-10 pt-28 pb-24">
         {step === 'CLASS_SELECT' && renderClassSelection()}
         {step === 'TOPIC_SELECT' && renderTopicSelection()}
         {step === 'INPUT' && renderInput()}
